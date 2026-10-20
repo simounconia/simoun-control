@@ -75,13 +75,6 @@ function dashboard(){
       <div class="card"><div class="muted">Vencidos</div><div class="metric">${overdue}</div></div>
       <div class="card"><div class="muted">Para hoy</div><div class="metric">${td}</div></div>
     </div>
-    <div class="section-title"><h2>Atención rápida</h2></div>
-    <div class="grid cards">
-      <button class="card" onclick="showPage('pendientes')"><h3>🔔 Pendientes</h3><div class="muted">Vencidos, hoy, próximos y sin fecha</div></button>
-      <button class="card" onclick="showPage('calendario')"><h3>📅 Calendario</h3><div class="muted">Instalaciones, citas y seguimientos</div></button>
-      <button class="card" onclick="showPage('expedientes')"><h3>📁 Expedientes</h3><div class="muted">Clientes y asuntos agrupados por tipo</div></button>
-      <button class="card" onclick="showPage('monitoreos')"><h3>🖥️ Monitoreos</h3><div class="muted">Módulo separado dentro del mismo sistema</div></button>
-    </div>
     <div class="section-title"><h2>App y respaldo</h2></div>
     <div class="grid cards">
       <div class="card"><h3>☁️ Sincronización</h3><div style="margin:8px 0">${window.SimounSync?.statusHTML?.()||'<span class="badge orange">Local</span>'}</div><div class="muted">Mismos datos y documentos en PC y celular.</div><div class="toolbar" style="margin-top:10px"><button class="btn sm" onclick="SimounSync.openSettings()">Configurar</button><button class="btn sm secondary" onclick="SimounSync.syncNow()">Sincronizar</button></div></div>
