@@ -18,7 +18,7 @@ function init(){
     function showCoordination(){
       const items=pending();
       coordination.innerHTML='<div class="row"><h2>Citas por confirmar ('+items.length+')</h2><button class="btn secondary" id="coordClose">Cerrar</button></div><p class="muted">La cita aparece en el calendario solo después de la confirmación con el cliente.</p>'+
-      (items.map(({c,i})=>'<div class="card" style="margin:10px 0"><strong>'+ehtml(c.name)+'</strong><p>'+ehtml(i.serviceAddress||c.address||'Dirección pendiente')+'</p><p>'+ehtml(i.description||'Trabajo por confirmar')+'</p><p class="muted">Disponibilidad del cliente: '+ehtml(i.appointmentWindow||'No indicada')+'</p><p><strong>'+ehtml(i.appointmentConfirmation)+'</strong></p><button class="btn secondary" data-coordinate="'+ehtml(i.id)+'">Coordinar cita</button></div>').join('')||'<p>No hay citas pendientes de confirmación.</p>');
+      (items.map(({c,i})=>'<div class="card" style="margin:10px 0"><strong>'+ehtml(c.name)+'</strong><p>'+ehtml(i.serviceAddress||c.address||'Dirección pendiente')+'</p><p>'+ehtml(i.description||'Trabajo por confirmar')+'</p><p class="muted">Disponibilidad del cliente: '+ehtml(i.clientAvailability||i.appointmentWindow||'No indicada')+'</p><p><strong>'+ehtml(i.appointmentConfirmation)+'</strong></p><button class="btn secondary" data-coordinate="'+ehtml(i.id)+'">Coordinar cita</button></div>').join('')||'<p>No hay citas pendientes de confirmación.</p>');
       coordination.querySelector('#coordClose').onclick=()=>coordination.close();
       coordination.querySelectorAll('[data-coordinate]').forEach(b=>b.onclick=()=>editCoordination(b.dataset.coordinate));
       if(!coordination.open)coordination.showModal();
@@ -26,11 +26,13 @@ function init(){
     function editCoordination(id){
       const found=pending().find(x=>x.i.id===id);if(!found)return;
       const {c,i}=found;
-      const available=i.proposedAppointmentWindow||i.clientAvailability||i.appointmentWindow||'';
+      const clientWindow=i.clientAvailability||((!i.proposedAppointmentWindow)?i.appointmentWindow:'')||'';
+      const bossWindow=i.proposedAppointmentWindow||'';
       coordination.innerHTML='<h2>Coordinar cita</h2><p><strong>'+ehtml(c.name)+'</strong> · '+ehtml(i.serviceAddress||c.address||'')+'</p><p class="muted">'+ehtml(i.description||'Trabajo por confirmar')+'</p><form id="coordForm">'+
       '<label style="display:flex;flex-direction:column;gap:8px;margin:0 0 16px;font-size:14px;font-weight:700">Etapa<select name="stage"><option value="Pendiente de coordinar">Consultar con el jefe</option><option value="Disponibilidad autorizada; falta confirmar cliente">Jefe dio disponibilidad; falta confirmar cliente</option><option value="Confirmada">Cliente confirmó la cita</option></select></label>'+
       '<label>Fecha propuesta / confirmada<input type="date" name="date" value="'+ehtml(i.proposedAppointmentDate||i.appointmentDate||'')+'"></label>'+
-      '<label>Horario concreto<input name="time" placeholder="Ej. 12:00 a 16:00" value="'+ehtml(available)+'"></label>'+
+      '<div class="notice" style="margin-bottom:14px"><strong>Disponibilidad indicada por el cliente:</strong><div>'+ehtml(clientWindow||'No registrada')+'</div></div>'+ 
+      '<label>Horario propuesto por el jefe<input name="time" placeholder="Ej. jueves de 13:00 a 15:00" value="'+ehtml(bossWindow)+'"></label>'+
       '<label>Persona que recibirá (opcional)<input name="receiver" value="'+ehtml(i.appointmentReceiver||'')+'"></label>'+
       '<label>Nota (opcional)<textarea name="note">'+ehtml(i.appointmentNote||'')+'</textarea></label>'+
       '<div class="toolbar" style="margin-top:15px"><button class="btn" type="submit">Guardar</button><button type="button" class="btn secondary" id="coordBack">Volver</button></div></form>';
@@ -46,7 +48,7 @@ function init(){
         i.appointmentConfirmation=stage;
         i.proposedAppointmentDate=date;
         i.proposedAppointmentWindow=time;
-        if(stage!=='Confirmada' && time)i.appointmentWindow=time;
+        // Conservar la disponibilidad original: el horario propuesto no la reemplaza.
         i.appointmentReceiver=String(fd.get('receiver')||'');
         i.appointmentNote=String(fd.get('note')||'');
         if(stage==='Confirmada'){i.appointmentDate=date;i.appointmentWindow=time;i.state='Programado';}
