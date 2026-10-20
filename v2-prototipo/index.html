@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SIMOUN V2 · Prototipo aislado</title>
+<style>
+:root{font-family:system-ui,Arial,sans-serif;color:#17304e;background:#f3f7fc}*{box-sizing:border-box}body{margin:0}header{background:#102e54;color:white;padding:18px}header h1{margin:0;font-size:22px}header small{opacity:.8}main{max-width:1100px;margin:auto;padding:18px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}.tabs button,button{border:0;border-radius:9px;padding:10px 14px;cursor:pointer}.tabs button{background:#e0e9f4;color:#183957}.tabs button.active,.primary{background:#1167a4;color:white}.card{background:white;border:1px solid #d8e4f1;border-radius:14px;padding:18px;margin:12px 0;box-shadow:0 4px 12px #16395a0c}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px}.metric{font-size:25px;font-weight:700}.muted{color:#66798c}label{display:block;font-size:14px;font-weight:600;margin-top:12px}input,select,textarea{display:block;width:100%;padding:10px;border:1px solid #bdcddd;border-radius:9px;margin-top:5px;font:inherit}textarea{min-height:70px}section[hidden]{display:none}.pill{background:#edf3fb;border-radius:50px;padding:4px 9px;font-size:12px}.row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.notice{border-left:4px solid #1b77ba;padding:10px;background:#edf6ff}.warn{color:#a54c0b}button:disabled{opacity:.5;cursor:not-allowed}
+</style></head><body>
+<header><h1>SIMOUN · Control Operativo V2</h1><small>Prototipo independiente · datos ficticios · no conectado a producción</small></header>
+<main>
+<div class="notice"><strong>Diseño inicial:</strong> primero asegurar la cita. Los detalles técnicos se completan después. Esta versión de prueba no usa la base de datos existente.</div>
+<nav class="tabs" id="tabs"></nav>
+<section id="inicio"><h2>Resumen general</h2><div class="grid" id="metrics"></div><div class="card"><h3>Próximas citas</h3><div id="upcoming"></div></div></section>
+<section id="solicitudes" hidden><div class="row"><h2>Solicitudes y citas</h2><button class="primary" id="new">+ Nueva solicitud</button></div><div id="requests"></div></section>
+<section id="pendientes" hidden><h2>Pendientes por área</h2><div id="boards"></div></section>
+<section id="clientes" hidden><h2>Clientes</h2><div id="clients"></div></section>
+<section id="detalle" hidden><div class="row"><h2>Expediente</h2><button id="back">Volver</button></div><div id="record"></div></section>
+<dialog id="formDialog" style="border:0;border-radius:16px;width:min(95vw,540px);padding:22px"><form id="requestForm" method="dialog"><h2>Nueva solicitud</h2><p class="muted">Puedes registrar una cita sin saber aún qué hará el técnico.</p><label>Cliente *<input name="cliente" required maxlength="120"></label><label>Dirección del servicio *<textarea name="direccion" required maxlength="400"></textarea></label><label>¿A qué van? (breve y opcional)<input name="motivo" placeholder="Ej. Revisar cámaras / por confirmar"></label><label>Tipo<select name="tipo"><option>Visita técnica</option><option>Cotización</option><option>Instalación</option><option>Reparación</option><option>Mantenimiento</option><option>Otro</option></select></label><label>Días y horarios disponibles (opcional)<input name="ventana" placeholder="Ej. martes o jueves, 12:00 a 17:00"></label><label>Nota (opcional)<textarea name="nota"></textarea></label><div class="row" style="margin-top:16px"><button type="button" id="cancel">Cancelar</button><button class="primary" type="submit">Guardar solicitud</button></div></form></dialog>
+</main><script>
+"use strict";
+const KEY="simoun_v2_prototipo_aislado_20261019";
+const initial=[{id:"EJ-001",cliente:"Cliente de ejemplo",direccion:"Dirección ficticia 123",motivo:"Revisar cámaras",tipo:"Visita técnica",ventana:"Martes 12:00–16:00",nota:"Confirmar con el jefe",estado:"Cita por confirmar",fecha:"",seguimiento:false}];
+let data;try{const x=JSON.parse(localStorage.getItem(KEY));data=Array.isArray(x)?x:initial}catch{data=initial}
+const areas=["inicio","solicitudes","pendientes","clientes"];
+const titles=["Inicio","Solicitudes y citas","Pendientes","Clientes"];
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const save=()=>localStorage.setItem(KEY,JSON.stringify(data));
+const statuses=["Cita por confirmar","Cita confirmada","Por instalar","Instalación incompleta","Trabajo terminado","Por cobrar","Por facturar","Archivado"];
+let current="inicio";
+function go(id){current=id;document.querySelectorAll("main>section").forEach(s=>s.hidden=s.id!==id);document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("active",b.dataset.id===id));render()}
+document.getElementById("tabs").innerHTML=areas.map((x,i)=>'<button data-id="'+x+'">'+titles[i]+'</button>').join("");
+document.querySelectorAll("#tabs button").forEach(b=>b.addEventListener("click",()=>go(b.dataset.id)));
+function render(){
+document.getElementById("metrics").innerHTML=["Citas por confirmar","Cita confirmada","Por instalar","Instalación incompleta","Por cobrar","Por facturar"].map(s=>'<div class="card"><div class="muted">'+esc(s)+'</div><div class="metric">'+data.filter(d=>d.estado===s).length+'</div></div>').join("");
+document.getElementById("upcoming").innerHTML=data.filter(d=>d.estado==="Cita confirmada").map(d=>'<p>'+esc(d.cliente)+' · '+esc(d.fecha||"Fecha pendiente")+'</p>').join("")||'<p class="muted">Sin citas confirmadas</p>';
+document.getElementById("requests").innerHTML=data.map(d=>'<div class="card"><div class="row"><strong>'+esc(d.cliente)+'</strong><span class="pill">'+esc(d.estado)+'</span></div><p>'+esc(d.direccion)+'</p><p class="muted">'+esc(d.motivo||"Trabajo por confirmar")+'</p><button data-open="'+esc(d.id)+'">Ver expediente</button></div>').join("");
+document.getElementById("boards").innerHTML=statuses.map(s=>'<div class="card"><strong>'+esc(s)+' ('+data.filter(d=>d.estado===s).length+')</strong>'+data.filter(d=>d.estado===s).map(d=>'<p>'+esc(d.cliente)+' · '+esc(d.motivo||"Por definir")+'</p>').join("")+'</div>').join("");
+document.getElementById("clients").innerHTML=[...new Set(data.map(d=>d.cliente))].map(n=>'<div class="card"><strong>'+esc(n)+'</strong><p class="muted">'+data.filter(d=>d.cliente===n).length+' expediente(s)</p></div>').join("");
+document.querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>openRecord(b.dataset.open)));
+}
+function openRecord(id){
+const d=data.find(x=>x.id===id);if(!d)return;go("detalle");
+document.getElementById("record").innerHTML='<div class="card"><h3>'+esc(d.cliente)+'</h3><p><strong>Dirección:</strong> '+esc(d.direccion)+'</p><p><strong>Descripción:</strong> '+esc(d.motivo||"Por confirmar con técnicos")+'</p><p><strong>Disponibilidad:</strong> '+esc(d.ventana||"No capturada")+'</p><label>Estado<select id="status">'+statuses.map(s=>'<option '+(d.estado===s?'selected':'')+'>'+esc(s)+'</option>').join("")+'</select></label><label>Fecha de cita confirmada (opcional)<input type="date" id="date" value="'+esc(d.fecha)+'"></label><label>Nota o seguimiento<textarea id="note">'+esc(d.nota||"")+'</textarea></label><label><input type="checkbox" id="remind" style="display:inline;width:auto" '+(d.seguimiento?'checked':'')+'> Activar recordatorio interno</label><button class="primary" id="saveRecord">Guardar cambios</button><p class="muted">Esta vista es un prototipo. La confirmación real de citas y los permisos por rol se implementarán antes de producción.</p></div>';
+document.getElementById("saveRecord").onclick=()=>{d.estado=document.getElementById("status").value;d.fecha=document.getElementById("date").value;d.nota=document.getElementById("note").value;d.seguimiento=document.getElementById("remind").checked;save();openRecord(id)};
+}
+document.getElementById("new").onclick=()=>document.getElementById("formDialog").showModal();
+document.getElementById("cancel").onclick=()=>document.getElementById("formDialog").close();
+document.getElementById("back").onclick=()=>go("solicitudes");
+document.getElementById("requestForm").addEventListener("submit",e=>{e.preventDefault();const f=new FormData(e.currentTarget);const d=Object.fromEntries(f.entries());data.push({...d,id:"P-"+Date.now(),estado:"Cita por confirmar",fecha:"",seguimiento:false});save();document.getElementById("formDialog").close();e.currentTarget.reset();go("solicitudes")});
+go("inicio");
+</script></body></html>
