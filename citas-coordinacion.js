@@ -26,13 +26,15 @@ function init(){
     function editCoordination(id){
       const found=pending().find(x=>x.i.id===id);if(!found)return;
       const {c,i}=found;
+      const available=i.proposedAppointmentWindow||i.clientAvailability||i.appointmentWindow||'';
       coordination.innerHTML='<h2>Coordinar cita</h2><p><strong>'+ehtml(c.name)+'</strong> · '+ehtml(i.serviceAddress||c.address||'')+'</p><p class="muted">'+ehtml(i.description||'Trabajo por confirmar')+'</p><form id="coordForm">'+
-      '<label>Etapa<select name="stage"><option value="Pendiente de coordinar">Consultar con el jefe</option><option value="Disponibilidad autorizada; falta confirmar cliente">Jefe dio disponibilidad; falta confirmar cliente</option><option value="Confirmada">Cliente confirmó la cita</option></select></label>'+
+      '<label style="display:flex;flex-direction:column;gap:8px;margin:0 0 16px;font-size:14px;font-weight:700">Etapa<select name="stage"><option value="Pendiente de coordinar">Consultar con el jefe</option><option value="Disponibilidad autorizada; falta confirmar cliente">Jefe dio disponibilidad; falta confirmar cliente</option><option value="Confirmada">Cliente confirmó la cita</option></select></label>'+
       '<label>Fecha propuesta / confirmada<input type="date" name="date" value="'+ehtml(i.proposedAppointmentDate||i.appointmentDate||'')+'"></label>'+
-      '<label>Horario concreto<input name="time" placeholder="Ej. 12:00 a 16:00" value="'+ehtml(i.proposedAppointmentWindow||i.appointmentWindow||'')+'"></label>'+
+      '<label>Horario concreto<input name="time" placeholder="Ej. 12:00 a 16:00" value="'+ehtml(available)+'"></label>'+
       '<label>Persona que recibirá (opcional)<input name="receiver" value="'+ehtml(i.appointmentReceiver||'')+'"></label>'+
       '<label>Nota (opcional)<textarea name="note">'+ehtml(i.appointmentNote||'')+'</textarea></label>'+
       '<div class="toolbar" style="margin-top:15px"><button class="btn" type="submit">Guardar</button><button type="button" class="btn secondary" id="coordBack">Volver</button></div></form>';
+      coordination.querySelectorAll('#coordForm input,#coordForm select,#coordForm textarea').forEach(el=>{el.style.cssText='display:block;width:100%;box-sizing:border-box;min-height:44px;padding:10px 12px;border:1px solid #c7d3e1;border-radius:10px;font:inherit;font-weight:400';});
       coordination.querySelector('[name=stage]').value=i.appointmentConfirmation;
       coordination.querySelector('#coordBack').onclick=showCoordination;
       coordination.querySelector('#coordForm').onsubmit=e=>{
