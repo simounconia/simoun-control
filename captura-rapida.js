@@ -33,6 +33,7 @@
       issue.description=String(f.get('motivo')||'').trim()||'Trabajo por confirmar con técnicos';
       issue.notes=String(f.get('nota')||'').trim();
       issue.appointmentWindow=String(f.get('horario')||'').trim();
+      issue.clientAvailability=issue.appointmentWindow;
       issue.serviceAddress=address;
       issue.appointmentConfirmation='Pendiente de coordinar';
       issue.history.push({date:new Date().toISOString(),action:'Solicitud rápida registrada',detail:'Dirección: '+address});
