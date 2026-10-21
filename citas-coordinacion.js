@@ -48,7 +48,6 @@ function init(){
         i.appointmentConfirmation=stage;
         i.proposedAppointmentDate=date;
         i.proposedAppointmentWindow=time;
-        // Conservar la disponibilidad original: el horario propuesto no la reemplaza.
         i.appointmentReceiver=String(fd.get('receiver')||'');
         i.appointmentNote=String(fd.get('note')||'');
         if(stage==='Confirmada'){i.appointmentDate=date;i.appointmentWindow=time;i.state='Programado';}
@@ -59,111 +58,46 @@ function init(){
       };
     }
     appointments.onclick=showCoordination;
-
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 
-// Accesos rápidos desde las cuatro tarjetas de resumen del Inicio.
+// Tarjetas del inicio: toda la tarjeta funciona como botón.
 (function(){
 'use strict';
-function initDashboardLinks(){
+function initDashboardCards(){
   if(typeof showPage!=='function'||typeof activeIssues!=='function')return;
-
   if(!document.getElementById('dashboardMetricStyles')){
     const style=document.createElement('style');
     style.id='dashboardMetricStyles';
-    style.textContent=`
-      .dashboard-metric-link{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease;touch-action:manipulation}
-      .dashboard-metric-link:active{transform:scale(.985)}
-      .dashboard-metric-link:focus-visible{outline:3px solid #2e8bc0;outline-offset:3px}
-      .dashboard-metric-link::after{content:'Tocar para abrir';display:block;margin-top:7px;font-size:11px;font-weight:700;color:#61738b}
-      .dashboard-active-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:6px 0 12px}
-      @media(max-width:720px){.dashboard-active-head{display:grid}.dashboard-active-head .toolbar{margin:0}}
-    `;
+    style.textContent='.dashboard-metric-link{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}.dashboard-metric-link:active{transform:scale(.985)}.dashboard-metric-link:focus-visible{outline:3px solid #2e8bc0;outline-offset:3px}.dashboard-metric-link::after{content:"Tocar para abrir";display:block;margin-top:7px;font-size:11px;font-weight:700;color:#61738b}';
     document.head.appendChild(style);
   }
-
-  function goTop(){try{window.scrollTo({top:0,behavior:'smooth'})}catch(_){window.scrollTo(0,0)}}
-
-  function openClients(){
-    issueTypeFilter='Todos';
-    showPage('expedientes');
-    renderClients('');
-    goTop();
-  }
-
-  function openPending(group){
-    pendingFilter=group;
-    showPage('pendientes');
-    goTop();
-  }
-
-  function activeDateText(issue){
-    const dates=issueDates(issue).slice().sort((a,b)=>a.date.localeCompare(b.date));
-    if(!dates.length)return 'Sin fecha';
-    const t=today();
-    const chosen=dates.find(d=>d.date>=t)||dates[dates.length-1];
-    return `${esc(chosen.label)} · ${fmt(chosen.date)}`;
-  }
-
+  const goTop=()=>{try{window.scrollTo({top:0,behavior:'smooth'})}catch(_){window.scrollTo(0,0)}};
+  function openClients(){issueTypeFilter='Todos';showPage('expedientes');renderClients('');goTop();}
+  function openPending(group){pendingFilter=group;showPage('pendientes');renderPendientes();goTop();}
   function renderActiveView(){
     const rows=activeIssues();
-    const box=document.getElementById('pendientes');
-    if(!box)return;
-    box.innerHTML=`
-      <div class="dashboard-active-head">
-        <div><h2 style="margin:0">Asuntos activos</h2><div class="muted">${rows.length} asunto${rows.length===1?'':'s'} sin terminar ni cancelar</div></div>
-        <div class="toolbar"><button class="btn secondary" id="dashboardAllPending">Ver todos los pendientes</button></div>
-      </div>
-      <div class="list">${rows.map(i=>`
-        <div class="card pending-item" style="${typeStyle(i.type)};border-left:5px solid var(--type)">
-          <div><strong>${esc(i.client.name)} · ${esc(i.type)}</strong><div class="muted">${esc(i.state||'Pendiente')} · ${esc(i.description||'Sin descripción')}</div></div>
-          <div style="text-align:right"><div class="when">${activeDateText(i)}</div><button class="btn sm secondary" onclick="openClient('${i.client.id}')">Abrir</button></div>
-        </div>`).join('')||'<div class="empty">No hay asuntos activos.</div>'}
-      </div>`;
-    const all=document.getElementById('dashboardAllPending');
-    if(all)all.onclick=()=>{pendingFilter='Todos';renderPendientes();};
+    const box=document.getElementById('pendientes');if(!box)return;
+    box.innerHTML='<div class="section-title"><h2>Asuntos activos</h2><span class="muted">'+rows.length+' asunto'+(rows.length===1?'':'s')+'</span></div><div class="list">'+
+      (rows.map(i=>'<div class="card pending-item" style="'+typeStyle(i.type)+';border-left:5px solid var(--type)"><div><strong>'+esc(i.client.name)+' · '+esc(i.type)+'</strong><div class="muted">'+esc(i.state||'Pendiente')+' · '+esc(i.description||'Sin descripción')+'</div></div><div style="text-align:right"><button class="btn sm secondary" onclick="openClient(\''+i.client.id+'\')">Abrir</button></div></div>').join('')||'<div class="empty">No hay asuntos activos.</div>')+
+      '</div>';
   }
-
-  function openActive(){
-    pendingFilter='Todos';
-    showPage('pendientes');
-    renderActiveView();
-    goTop();
-  }
-
-  const actions={
-    'Clientes':openClients,
-    'Asuntos activos':openActive,
-    'Vencidos':()=>openPending('Vencidos'),
-    'Para hoy':()=>openPending('Hoy')
-  };
-
+  function openActive(){pendingFilter='Todos';showPage('pendientes');renderActiveView();goTop();}
+  const actions={'Clientes':openClients,'Asuntos activos':openActive,'Vencidos':()=>openPending('Vencidos'),'Para hoy':()=>openPending('Hoy')};
   function enhance(){
-    const home=document.getElementById('inicio');
-    if(!home)return;
-    const grid=home.querySelector('.grid.cards');
-    if(!grid)return;
+    const home=document.getElementById('inicio');if(!home)return;
+    const grid=home.querySelector('.grid.cards');if(!grid)return;
     [...grid.children].forEach(card=>{
       const label=(card.querySelector('.muted')?.textContent||'').trim();
-      const action=actions[label];
-      if(!action||card.dataset.dashboardLinked==='1')return;
-      card.dataset.dashboardLinked='1';
-      card.classList.add('dashboard-metric-link');
-      card.setAttribute('role','button');
-      card.setAttribute('tabindex','0');
-      card.setAttribute('aria-label','Abrir '+label);
-      card.addEventListener('click',action);
-      card.addEventListener('keydown',e=>{
-        if(e.key==='Enter'||e.key===' '){e.preventDefault();action();}
-      });
+      const action=actions[label];if(!action)return;
+      card.classList.add('dashboard-metric-link');card.setAttribute('role','button');card.setAttribute('tabindex','0');card.setAttribute('aria-label','Abrir '+label);
+      card.onclick=action;
+      card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();action();}};
     });
   }
-
-  const home=document.getElementById('inicio');
-  if(home){new MutationObserver(enhance).observe(home,{childList:true,subtree:true});}
+  const home=document.getElementById('inicio');if(home)new MutationObserver(enhance).observe(home,{childList:true,subtree:true});
   enhance();
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initDashboardLinks);else initDashboardLinks();
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initDashboardCards);else initDashboardCards();
 })();
