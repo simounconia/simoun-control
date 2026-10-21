@@ -10,7 +10,7 @@
     bar.appendChild(btn);
     const dlg=document.createElement('dialog');
     dlg.style.cssText='border:0;border-radius:16px;max-width:520px;width:94vw;padding:20px';
-    dlg.innerHTML='<form id="quickIntakeForm"><h2>Solicitud rápida</h2><p class="muted">No necesitas saber todavía qué hará el técnico.</p><div class="field"><label>Cliente *</label><input name="cliente" required maxlength="120" autocomplete="off"></div><div class="field"><label>Dirección del servicio *</label><textarea name="direccion" required maxlength="500"></textarea></div><div class="field"><label>¿A qué van? (opcional)</label><input name="motivo" placeholder="Ej. Revisar cámaras / por confirmar" maxlength="250"></div><div class="field"><label>Tipo de solicitud</label><select name="tipo"><option>Reparación</option><option>Cotización</option><option>Instalación</option><option>Mantenimiento</option><option>Seguimiento</option><option>Pregunta</option></select></div><div class="field"><label>Días y horario disponibles (opcional)</label><input name="horario" placeholder="Ej. martes y jueves de 12:00 a 17:00"></div><div class="field"><label>Nota (opcional)</label><textarea name="nota"></textarea></div><div class="toolbar"><button class="btn" type="submit">Guardar solicitud</button><button class="btn secondary" type="button" id="quickCancel">Cancelar</button></div></form>';
+    dlg.innerHTML='<form id="quickIntakeForm"><h2>Solicitud rápida</h2><p class="muted">No necesitas saber todavía qué hará el técnico.</p><div class="field"><label>Cliente *</label><input name="cliente" required maxlength="120" autocomplete="off"></div><div class="field"><label>Número de WhatsApp (opcional)</label><input name="whatsapp" inputmode="tel" maxlength="40" autocomplete="tel" placeholder="Ej. 443 123 4567"></div><div class="field"><label>Dirección del servicio *</label><textarea name="direccion" required maxlength="500"></textarea></div><div class="field"><label>¿A qué van? (opcional)</label><input name="motivo" placeholder="Ej. Revisar cámaras / por confirmar" maxlength="250"></div><div class="field"><label>Tipo de solicitud</label><select name="tipo"><option>Reparación</option><option>Cotización</option><option>Instalación</option><option>Mantenimiento</option><option>Seguimiento</option><option>Pregunta</option></select></div><div class="field"><label>Días y horario disponibles (opcional)</label><input name="horario" placeholder="Ej. martes y jueves de 12:00 a 17:00"></div><div class="field"><label>Nota (opcional)</label><textarea name="nota"></textarea></div><div class="toolbar"><button class="btn" type="submit">Guardar solicitud</button><button class="btn secondary" type="button" id="quickCancel">Cancelar</button></div></form>';
     document.body.appendChild(dlg);
     btn.onclick=()=>dlg.showModal();
     dlg.querySelector('#quickCancel').onclick=()=>dlg.close();
@@ -18,6 +18,7 @@
       e.preventDefault();
       const f=new FormData(e.currentTarget);
       const name=String(f.get('cliente')||'').trim();
+      const whatsapp=String(f.get('whatsapp')||'').trim();
       const address=String(f.get('direccion')||'').trim();
       if(!name||!address)return;
       const matches=state.clients.filter(c=>String(c.name||'').trim().toLocaleLowerCase('es')===name.toLocaleLowerCase('es'));
@@ -25,9 +26,10 @@
       if(matches.length===1)client=matches[0];
       else if(matches.length>1){alert('Hay varios clientes con ese nombre. Selecciona el correcto desde Expedientes para evitar duplicados.');return;}
       else{
-        client=blankClient();client.name=name;client.address=address;
+        client=blankClient();client.name=name;client.address=address;client.whatsapp=whatsapp;
         state.clients.unshift(client);
       }
+      if(whatsapp&&!String(client.whatsapp||'').trim())client.whatsapp=whatsapp;
       const issue=blankIssue();
       issue.type=String(f.get('tipo')||'Seguimiento');
       issue.description=String(f.get('motivo')||'').trim()||'Trabajo por confirmar con técnicos';
@@ -54,41 +56,41 @@
   if(window.__simounDailyReportEnhancement)return;
   window.__simounDailyReportEnhancement=true;
 
-  function localISODate(d=new Date()){
-    const y=d.getFullYear();
-    const m=String(d.getMonth()+1).padStart(2,'0');
-    const day=String(d.getDate()).padStart(2,'0');
-    return `${y}-${m}-${day}`;
-  }
-
   function localReportDate(d=new Date()){
     return d.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
   }
 
-  function nextUsefulDate(issue){
-    if(typeof issueDates!=='function')return '';
-    const dates=issueDates(issue).filter(x=>x.date).sort((a,b)=>a.date.localeCompare(b.date));
-    if(!dates.length)return '';
-    const now=localISODate();
-    const future=dates.find(x=>x.date>=now)||dates[dates.length-1];
-    return `${future.label}: ${typeof fmt==='function'?fmt(future.date):future.date}`;
+  function clean(value,fallback='No registrado'){
+    const text=String(value??'').trim();
+    return text||fallback;
   }
 
   function reportLine(issue,index){
     const client=issue.client||{};
-    const title=client.name||client.company||'Sin nombre';
-    const company=client.company&&client.company!==title?` · ${client.company}`:'';
-    const description=String(issue.description||'Sin descripción').trim();
-    const address=String(issue.serviceAddress||client.address||'').trim();
-    const details=[];
-    if(address)details.push(`Dirección: ${address}`);
-    if(issue.state)details.push(`Estado: ${issue.state}`);
-    const date=nextUsefulDate(issue);if(date)details.push(date);
-    if(issue.appointmentWindow)details.push(`Horario: ${issue.appointmentWindow}`);
-    if(issue.type==='Cobro'&&Number(issue.balance||0)>0)details.push(`Saldo: ${typeof money==='function'?money(issue.balance):issue.balance}`);
-    if(issue.type==='Trabajo incompleto'&&issue.nextAction)details.push(`Siguiente: ${String(issue.nextAction).trim()}`);
-    if(issue.type==='Trabajo futuro / promesa'&&issue.futurePromise)details.push(`Promesa: ${String(issue.futurePromise).trim()}`);
-    return `${index+1}. ${title}${company} — ${description}${details.length?`\n   ${details.join(' · ')}`:''}`;
+    const name=clean(client.name,'Sin nombre');
+    const whatsapp=clean(client.whatsapp,'No registrado');
+    const address=clean(issue.serviceAddress||client.address,'No registrada');
+    const receiveWindow=clean(issue.clientAvailability||issue.appointmentWindow||issue.proposedAppointmentWindow,'No registrada');
+    const generalNotes=String(client.notes||'').trim();
+    const type=clean(issue.type,'Sin tipo');
+    const status=clean(issue.state,'Pendiente');
+    const description=clean(issue.description,'Sin descripción');
+    const issueNotes=clean(issue.notes,'Sin notas');
+    const lines=[
+      `${index+1}. ${name}`,
+      `   WhatsApp: ${whatsapp}`,
+      `   Dirección: ${address}`,
+      `   Ventana para recibirnos: ${receiveWindow}`
+    ];
+    if(generalNotes)lines.push(`   Observaciones generales: ${generalNotes}`);
+    lines.push(`   Tipo de servicio: ${type}`);
+    lines.push(`   Estatus: ${status}`);
+    lines.push(`   Descripción del trabajo: ${description}`);
+    lines.push(`   Notas: ${issueNotes}`);
+    if(issue.type==='Cobro'&&Number(issue.balance||0)>0)lines.push(`   Saldo pendiente: ${typeof money==='function'?money(issue.balance):issue.balance}`);
+    if(issue.type==='Trabajo incompleto'&&String(issue.nextAction||'').trim())lines.push(`   Próxima acción: ${String(issue.nextAction).trim()}`);
+    if(issue.type==='Trabajo futuro / promesa'&&String(issue.futurePromise||'').trim())lines.push(`   Promesa / trabajo futuro: ${String(issue.futurePromise).trim()}`);
+    return lines.join('\n');
   }
 
   function buildDailyReport(){
@@ -115,7 +117,8 @@
       const meta=typeof TYPE_META!=='undefined'&&TYPE_META[type]?TYPE_META[type]:{icon:'•'};
       if(groupIndex>0)lines.push('');
       lines.push(`${meta.icon||'•'} ${type} — ${rows.length}`);
-      rows.forEach((issue,index)=>lines.push(reportLine(issue,index)));
+      rows.forEach((issue,index)=>{lines.push(reportLine(issue,index));lines.push('');});
+      if(lines[lines.length-1]==='')lines.pop();
     });
     return lines.join('\n');
   }
@@ -125,7 +128,7 @@
     if(dlg)return dlg;
     dlg=document.createElement('dialog');
     dlg.id='dailyReportDlg';
-    dlg.innerHTML=`<div class="modal-head"><strong>📋 Reporte diario de pendientes</strong><button class="close" type="button" aria-label="Cerrar">×</button></div><div class="modal-body"><div class="notice" style="margin-bottom:10px">Se arma automáticamente con los asuntos activos. No modifica tus expedientes.</div><textarea id="dailyReportText" aria-label="Reporte diario" style="width:100%;min-height:340px;padding:12px;border:1px solid var(--line);border-radius:12px;resize:vertical;background:#fff;color:var(--ink)"></textarea><div class="toolbar" style="margin-top:12px"><button class="btn" type="button" id="dailyCopyBtn">📋 Copiar reporte</button><button class="btn secondary" type="button" id="dailyShareBtn">📤 Compartir</button><button class="btn light" type="button" id="dailyRefreshBtn">↻ Actualizar</button></div><div id="dailyReportStatus" class="muted" role="status" aria-live="polite"></div></div>`;
+    dlg.innerHTML=`<div class="modal-head"><strong>📋 Reporte diario de pendientes</strong><button class="close" type="button" aria-label="Cerrar">×</button></div><div class="modal-body"><div class="notice" style="margin-bottom:10px">Se arma automáticamente con los asuntos activos. No modifica tus expedientes.</div><textarea id="dailyReportText" aria-label="Reporte diario" style="width:100%;min-height:420px;padding:12px;border:1px solid var(--line);border-radius:12px;resize:vertical;background:#fff;color:var(--ink)"></textarea><div class="toolbar" style="margin-top:12px"><button class="btn" type="button" id="dailyCopyBtn">📋 Copiar reporte</button><button class="btn secondary" type="button" id="dailyShareBtn">📤 Compartir</button><button class="btn light" type="button" id="dailyRefreshBtn">↻ Actualizar</button></div><div id="dailyReportStatus" class="muted" role="status" aria-live="polite"></div></div>`;
     document.body.appendChild(dlg);
     dlg.querySelector('.close').addEventListener('click',()=>dlg.close());
     dlg.querySelector('#dailyRefreshBtn').addEventListener('click',()=>{
@@ -198,9 +201,42 @@
     });
   }
 
+  function applyWhatsAppDirectory(){
+    const root=document.getElementById('expedientes');
+    if(!root||typeof state==='undefined')return;
+    const search=root.querySelector('#clientSearch');
+    if(search)search.placeholder='Buscar por cliente, empresa, WhatsApp o dirección';
+    const q=String(search?.value||'').trim().toLowerCase();
+    const clients=(state.clients||[]).filter(c=>[c.name,c.contact,c.company,c.address,c.whatsapp,c.phone].some(v=>String(v||'').toLowerCase().includes(q)));
+    const cards=Array.from(root.querySelectorAll('.card.client'));
+    cards.forEach((card,index)=>{
+      const c=clients[index];if(!c)return;
+      const info=card.firstElementChild;
+      const muted=info?Array.from(info.querySelectorAll('.muted')):[];
+      if(muted[1])muted[1].textContent=c.whatsapp?`WhatsApp: ${c.whatsapp}`:'WhatsApp: sin registrar';
+    });
+  }
+
+  function patchClientDialog(c){
+    const form=document.getElementById('clientForm');if(!form)return;
+    const phone=form.querySelector('input[name="phone"]');
+    if(phone){
+      const hidden=document.createElement('input');hidden.type='hidden';hidden.name='phone';hidden.value=String(c?.phone||'');
+      form.appendChild(hidden);
+      phone.closest('.field')?.remove();
+    }
+    const whatsapp=form.querySelector('input[name="whatsapp"]');
+    if(whatsapp){
+      whatsapp.inputMode='tel';whatsapp.autocomplete='tel';
+      const field=whatsapp.closest('.field');const label=field?.querySelector('label');
+      if(label)label.textContent='Número de WhatsApp';
+    }
+  }
+
   function enhanceExpedientes(){
     addReportButtonToExpedientes();
     makeTypeCardsTappable();
+    applyWhatsAppDirectory();
   }
 
   function addReportButtonToPendientes(){
@@ -226,6 +262,12 @@
       const wrapped=function(){const result=baseRenderPendientes();addReportButtonToPendientes();return result;};
       wrapped.__dailyEnhanced=true;
       renderPendientes=wrapped;
+    }
+    if(typeof editClient==='function'&&!editClient.__whatsappOnlyEnhanced){
+      const baseEditClient=editClient;
+      const wrapped=function(c,isNew){const result=baseEditClient(c,isNew);patchClientDialog(c);return result;};
+      wrapped.__whatsappOnlyEnhanced=true;
+      editClient=wrapped;
     }
     enhanceExpedientes();
     addReportButtonToPendientes();
