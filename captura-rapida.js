@@ -289,3 +289,40 @@
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installEnhancements);
   else installEnhancements();
 })();
+
+// SIMOUN: primera etapa comercial para clientes/asuntos que aún no han avanzado.
+(function(){
+  'use strict';
+  const NEW_TYPE='Nuevo / por iniciar';
+
+  function registerType(){
+    if(Array.isArray(ISSUE_TYPES)&&!ISSUE_TYPES.includes(NEW_TYPE))ISSUE_TYPES.unshift(NEW_TYPE);
+    if(typeof TYPE_META==='object'&&TYPE_META){
+      TYPE_META[NEW_TYPE]={icon:'🆕',color:'#0f766e',bg:'#e9f8f6',ink:'#115e59'};
+    }
+  }
+
+  function patchQuickIntake(){
+    const select=document.querySelector('#quickIntakeForm select[name="tipo"]');
+    if(!select)return;
+    const exists=Array.from(select.options).some(o=>o.value===NEW_TYPE||o.textContent===NEW_TYPE);
+    if(exists)return;
+    const option=document.createElement('option');
+    option.value=NEW_TYPE;
+    option.textContent=NEW_TYPE;
+    select.insertBefore(option,select.firstChild);
+  }
+
+  function refreshUI(){
+    registerType();
+    patchQuickIntake();
+    if(typeof renderClients==='function'){
+      const q=document.getElementById('clientSearch')?.value||'';
+      renderClients(q);
+    }
+  }
+
+  registerType();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refreshUI);
+  else refreshUI();
+})();
