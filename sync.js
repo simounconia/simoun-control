@@ -69,7 +69,7 @@
     const data=await api('/auth/v1/token?grant_type=password',{method:'POST',auth:false,body:JSON.stringify({email,password})});
     if(data.expires_in&&!data.expires_at)data.expires_at=Math.floor(Date.now()/1000)+Number(data.expires_in);
     localStorage.setItem(TOKEN_KEY,JSON.stringify(data));
-    await loadAccess(true);
+    try{await loadAccess(true)}catch(e){localStorage.removeItem(TOKEN_KEY);access={role:'',displayName:'',email:'',workspace:WORKSPACE};throw e}
     setMeta({status:'connected',lastError:''});
     return data;
   }
@@ -80,7 +80,7 @@
     if(data?.access_token){
       if(data.expires_in&&!data.expires_at)data.expires_at=Math.floor(Date.now()/1000)+Number(data.expires_in);
       localStorage.setItem(TOKEN_KEY,JSON.stringify(data));
-      await loadAccess(true);
+      try{await loadAccess(true)}catch(e){localStorage.removeItem(TOKEN_KEY);access={role:'',displayName:'',email:'',workspace:WORKSPACE};throw e}
       setMeta({status:'connected',lastError:''});
     }
     return data;
@@ -88,20 +88,21 @@
 
   function signOut(){
     localStorage.removeItem(TOKEN_KEY);
-    access={role:'',displayName:'',email:'',workspace:WORKSPACE};activity=[];
+    access={role:'',displayName:'',email:'',workspace:WORKSPACE};activity=[];adminUidCache='';
     setMeta({status:'offline',lastError:''});refreshStatus();dispatch('simoun-access-change');dispatch('simoun-activity-change');
   }
 
   async function loadAccess(strict=false){
     if(!loggedIn()){access={role:'',displayName:'',email:'',workspace:WORKSPACE};return access}
-    const rows=await api('/rest/v1/simoun_workspace_members?workspace_id=eq.'+encodeURIComponent(WORKSPACE)+'&select=email,role,display_name&limit=1',{headers:{'Accept':'application/json'}});
+    const email=session().user?.email||'';
+    const rows=await api('/rest/v1/simoun_workspace_members?workspace_id=eq.'+encodeURIComponent(WORKSPACE)+'&email=eq.'+encodeURIComponent(email)+'&select=email,role,display_name&limit=1',{headers:{'Accept':'application/json'}});
     const row=Array.isArray(rows)?rows[0]:null;
     if(!row){
-      access={role:'',displayName:'',email:session().user?.email||'',workspace:WORKSPACE};
+      access={role:'',displayName:'',email,workspace:WORKSPACE};
       if(strict)throw new Error('Este correo no está autorizado para SIMOUN.');
       return access;
     }
-    access={role:row.role||'',displayName:row.display_name||'',email:row.email||session().user?.email||'',workspace:WORKSPACE};
+    access={role:row.role||'',displayName:row.display_name||'',email:row.email||email,workspace:WORKSPACE};
     dispatch('simoun-access-change');
     return access;
   }
@@ -114,11 +115,16 @@
 
   async function uploadState(s){
     if(!loggedIn()||!isAdmin())return;
-    const payload={data:s,updated_at:new Date().toISOString()};
-    await api('/rest/v1/simoun_workspace_state?workspace_id=eq.'+encodeURIComponent(WORKSPACE),{
-      method:'PATCH',headers:{'Prefer':'return=minimal'},body:JSON.stringify(payload)
+    const since=meta().lastServerUpdatedAt||null;
+    const merged=await api('/rest/v1/rpc/simoun_admin_save_state',{
+      method:'POST',body:JSON.stringify({p_workspace:WORKSPACE,p_data:s,p_since:since})
     });
+    if(merged&&typeof merged==='object'){
+      applyRemote(merged);
+      setMeta({lastServerUpdatedAt:merged._updatedAt||new Date().toISOString()});
+    }
     setMeta({lastSync:new Date().toISOString(),status:'connected',lastError:''});
+    return merged;
   }
 
   function applyRemote(data){
@@ -147,13 +153,15 @@
 
       if(isOperative()){
         applyRemote(remote.data);
+        setMeta({lastServerUpdatedAt:remote.updated_at||stateStamp(remote.data)||''});
       }else{
         const l=stateStamp(local),r=stateStamp(remote.data);
-        if(local?._freshInstall&&!forcePush)applyRemote(remote.data);
+        if(local?._freshInstall&&!forcePush){applyRemote(remote.data);setMeta({lastServerUpdatedAt:remote.updated_at||r||''})}
         else if(forcePush||(!r&&local)){await uploadState(local)}
         else if(l&&r&&l>r){await uploadState(local)}
-        else if(r>l){applyRemote(remote.data)}
-        else if(!l&&remote.data){applyRemote(remote.data)}
+        else if(r>l){applyRemote(remote.data);setMeta({lastServerUpdatedAt:remote.updated_at||r||''})}
+        else if(!l&&remote.data){applyRemote(remote.data);setMeta({lastServerUpdatedAt:remote.updated_at||r||''})}
+        else setMeta({lastServerUpdatedAt:remote.updated_at||r||meta().lastServerUpdatedAt||''});
       }
       await refreshActivity();
       setMeta({lastSync:new Date().toISOString(),status:'connected',lastError:''});
@@ -170,7 +178,10 @@
   async function createClient(client){
     if(!loggedIn()||!role())throw new Error('Inicia sesión primero.');
     const data=await api('/rest/v1/rpc/simoun_operativo_create_client',{method:'POST',body:JSON.stringify({p_workspace:WORKSPACE,p_client:client})});
-    if(data&&typeof data==='object')applyRemote(data);
+    if(data&&typeof data==='object'){
+      applyRemote(data);
+      setMeta({lastServerUpdatedAt:data._updatedAt||new Date().toISOString()});
+    }
     await refreshActivity();
     setMeta({lastSync:new Date().toISOString(),status:'connected',lastError:''});
     return data;
@@ -179,7 +190,10 @@
   async function createIssue(clientId,issue){
     if(!loggedIn()||!role())throw new Error('Inicia sesión primero.');
     const data=await api('/rest/v1/rpc/simoun_operativo_create_issue',{method:'POST',body:JSON.stringify({p_workspace:WORKSPACE,p_client_id:clientId,p_issue:issue})});
-    if(data&&typeof data==='object')applyRemote(data);
+    if(data&&typeof data==='object'){
+      applyRemote(data);
+      setMeta({lastServerUpdatedAt:data._updatedAt||new Date().toISOString()});
+    }
     await refreshActivity();
     setMeta({lastSync:new Date().toISOString(),status:'connected',lastError:''});
     return data;
