@@ -101,3 +101,36 @@ function initDashboardCards(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initDashboardCards);else initDashboardCards();
 })();
+
+// Filtros de Pendientes: habilitar interacción táctil confiable en móvil/PWA.
+(function(){
+'use strict';
+function initPendingFilters(){
+  if(typeof renderPendientes!=='function')return;
+  const box=document.getElementById('pendientes');if(!box)return;
+  const groups=new Set(['Todos','Vencidos','Hoy','Próximos','Sin fecha','Esperando al cliente','Esperando autorización','Trabajo incompleto','Cobros pendientes']);
+  if(!document.getElementById('pendingFilterTouchStyles')){
+    const style=document.createElement('style');
+    style.id='pendingFilterTouchStyles';
+    style.textContent='#pendientes .filters{position:relative;z-index:5}#pendientes .filter{pointer-events:auto!important;touch-action:manipulation;cursor:pointer;user-select:none;-webkit-tap-highlight-color:rgba(11,44,85,.12)}#pendientes .filter:active{transform:scale(.97)}';
+    document.head.appendChild(style);
+  }
+  function enhance(){
+    box.querySelectorAll('.filter').forEach(btn=>{
+      const group=(btn.textContent||'').trim();
+      if(!groups.has(group))return;
+      btn.type='button';
+      btn.dataset.pendingFilter=group;
+      btn.onclick=e=>{
+        e.preventDefault();
+        e.stopPropagation();
+        pendingFilter=group;
+        renderPendientes();
+      };
+    });
+  }
+  new MutationObserver(enhance).observe(box,{childList:true,subtree:true});
+  enhance();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initPendingFilters);else initPendingFilters();
+})();
