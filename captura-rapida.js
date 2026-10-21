@@ -10,7 +10,7 @@
     bar.appendChild(btn);
     const dlg=document.createElement('dialog');
     dlg.style.cssText='border:0;border-radius:16px;max-width:520px;width:94vw;padding:20px';
-    dlg.innerHTML='<form id="quickIntakeForm"><h2>Solicitud rápida</h2><p class="muted">No necesitas saber todavía qué hará el técnico.</p><div class="field"><label>Cliente *</label><input name="cliente" required maxlength="120" autocomplete="off"></div><div class="field"><label>Número de WhatsApp (opcional)</label><input name="whatsapp" inputmode="tel" maxlength="40" autocomplete="tel" placeholder="Ej. 443 123 4567"></div><div class="field"><label>Dirección del servicio *</label><textarea name="direccion" required maxlength="500"></textarea></div><div class="field"><label>¿A qué van? (opcional)</label><input name="motivo" placeholder="Ej. Revisar cámaras / por confirmar" maxlength="250"></div><div class="field"><label>Tipo de solicitud</label><select name="tipo"><option>Reparación</option><option>Cotización</option><option>Instalación</option><option>Mantenimiento</option><option>Seguimiento</option><option>Pregunta</option></select></div><div class="field"><label>Días y horario disponibles (opcional)</label><input name="horario" placeholder="Ej. martes y jueves de 12:00 a 17:00"></div><div class="field"><label>Nota (opcional)</label><textarea name="nota"></textarea></div><div class="toolbar"><button class="btn" type="submit">Guardar solicitud</button><button class="btn secondary" type="button" id="quickCancel">Cancelar</button></div></form>';
+    dlg.innerHTML='<form id="quickIntakeForm"><h2>Solicitud rápida</h2><p class="muted">No necesitas saber todavía qué hará el técnico.</p><div class="field"><label>Cliente *</label><input name="cliente" required maxlength="120" autocomplete="off"></div><div class="field"><label>Número de WhatsApp (opcional)</label><input name="whatsapp" inputmode="tel" maxlength="40" autocomplete="tel" placeholder="Ej. 443 123 4567"></div><div class="field"><label>Dirección del servicio *</label><textarea name="direccion" required maxlength="500"></textarea></div><div class="field"><label>¿A qué van? (opcional)</label><input name="motivo" placeholder="Ej. Revisar cámaras / por confirmar" maxlength="250"></div><div class="field"><label>Tipo de solicitud</label><select name="tipo"><option>Reparación</option><option>Cotización</option><option>Instalación</option><option>Mantenimiento</option><option>Seguimiento</option><option>Pregunta</option></select></div><div class="field"><label>Ventana de atención (opcional)</label><input name="horario" placeholder="Ej. martes y jueves de 12:00 a 17:00"></div><div class="field"><label>Nota (opcional)</label><textarea name="nota"></textarea></div><div class="toolbar"><button class="btn" type="submit">Guardar solicitud</button><button class="btn secondary" type="button" id="quickCancel">Cancelar</button></div></form>';
     document.body.appendChild(dlg);
     btn.onclick=()=>dlg.showModal();
     dlg.querySelector('#quickCancel').onclick=()=>dlg.close();
@@ -65,26 +65,18 @@
     return text||fallback;
   }
 
-  function reportLine(issue,index){
-    const client=issue.client||{};
-    const name=clean(client.name,'Sin nombre');
-    const whatsapp=clean(client.whatsapp,'No registrado');
-    const address=clean(issue.serviceAddress||client.address,'No registrada');
-    const receiveWindow=clean(issue.clientAvailability||issue.appointmentWindow||issue.proposedAppointmentWindow,'No registrada');
-    const generalNotes=String(client.notes||'').trim();
+  function serviceBlock(issue,index){
     const type=clean(issue.type,'Sin tipo');
     const status=clean(issue.state,'Pendiente');
     const description=clean(issue.description,'Sin descripción');
     const issueNotes=clean(issue.notes,'Sin notas');
+    const receiveWindow=String(issue.clientAvailability||issue.appointmentWindow||issue.proposedAppointmentWindow||'').trim();
     const lines=[
-      `${index+1}. ${name}`,
-      `   WhatsApp: ${whatsapp}`,
-      `   Dirección: ${address}`,
-      `   Ventana para recibirnos: ${receiveWindow}`
+      `   Servicio ${index+1}`,
+      `   Tipo de servicio: ${type}`,
+      `   Estatus: ${status}`
     ];
-    if(generalNotes)lines.push(`   Observaciones generales: ${generalNotes}`);
-    lines.push(`   Tipo de servicio: ${type}`);
-    lines.push(`   Estatus: ${status}`);
+    if(receiveWindow)lines.push(`   Ventana de atención: ${receiveWindow}`);
     lines.push(`   Descripción del trabajo: ${description}`);
     lines.push(`   Notas: ${issueNotes}`);
     if(issue.type==='Cobro'&&Number(issue.balance||0)>0)lines.push(`   Saldo pendiente: ${typeof money==='function'?money(issue.balance):issue.balance}`);
@@ -93,32 +85,53 @@
     return lines.join('\n');
   }
 
+  function clientBlock(client,issues,index){
+    const name=clean(client.name,'Sin nombre');
+    const whatsapp=clean(client.whatsapp,'No registrado');
+    const fallbackAddress=issues.map(i=>String(i.serviceAddress||'').trim()).find(Boolean)||'';
+    const address=clean(client.address||fallbackAddress,'No registrada');
+    const generalNotes=String(client.notes||'').trim();
+    const lines=[
+      `${index+1}. CLIENTE: ${name}`,
+      `WhatsApp: ${whatsapp}`,
+      `Dirección: ${address}`
+    ];
+    if(generalNotes)lines.push(`Observaciones generales: ${generalNotes}`);
+    lines.push(`Servicios pendientes: ${issues.length}`);
+    issues.forEach((issue,serviceIndex)=>{
+      lines.push('');
+      lines.push(serviceBlock(issue,serviceIndex));
+    });
+    return lines.join('\n');
+  }
+
   function buildDailyReport(){
     const issues=(typeof activeIssues==='function'?activeIssues():[]).slice();
-    const types=Array.isArray(ISSUE_TYPES)?ISSUE_TYPES:[];
-    const order=new Map(types.map((t,i)=>[t,i]));
-    issues.sort((a,b)=>{
-      const ta=order.has(a.type)?order.get(a.type):999;
-      const tb=order.has(b.type)?order.get(b.type):999;
-      if(ta!==tb)return ta-tb;
-      return String(a.client?.name||'').localeCompare(String(b.client?.name||''),'es');
-    });
-    const lines=[`PENDIENTES SIMOUN · ${localReportDate()}`,`Total: ${issues.length} asunto${issues.length===1?'':'s'} activo${issues.length===1?'':'s'}`,''];
-    if(!issues.length){lines.push('No hay asuntos activos pendientes.');return lines.join('\n');}
     const grouped=new Map();
     issues.forEach(issue=>{
-      const key=issue.type||'Sin categoría';
-      if(!grouped.has(key))grouped.set(key,[]);
-      grouped.get(key).push(issue);
+      const client=issue.client||{};
+      const key=String(client.id||client.name||'sin-cliente');
+      if(!grouped.has(key))grouped.set(key,{client,issues:[]});
+      grouped.get(key).issues.push(issue);
     });
-    const orderedTypes=[...types.filter(t=>grouped.has(t)),...Array.from(grouped.keys()).filter(t=>!order.has(t))];
-    orderedTypes.forEach((type,groupIndex)=>{
-      const rows=grouped.get(type)||[];
-      const meta=typeof TYPE_META!=='undefined'&&TYPE_META[type]?TYPE_META[type]:{icon:'•'};
-      if(groupIndex>0)lines.push('');
-      lines.push(`${meta.icon||'•'} ${type} — ${rows.length}`);
-      rows.forEach((issue,index)=>{lines.push(reportLine(issue,index));lines.push('');});
-      if(lines[lines.length-1]==='')lines.pop();
+    const clients=Array.from(grouped.values()).sort((a,b)=>String(a.client.name||'').localeCompare(String(b.client.name||''),'es'));
+    clients.forEach(group=>{
+      group.issues.sort((a,b)=>{
+        const ad=String(a.createdDate||'');
+        const bd=String(b.createdDate||'');
+        if(ad!==bd)return ad.localeCompare(bd);
+        return String(a.type||'').localeCompare(String(b.type||''),'es');
+      });
+    });
+    const lines=[
+      `PENDIENTES SIMOUN · ${localReportDate()}`,
+      `Clientes con pendientes: ${clients.length} · Servicios activos: ${issues.length}`,
+      ''
+    ];
+    if(!issues.length){lines.push('No hay asuntos activos pendientes.');return lines.join('\n');}
+    clients.forEach((group,index)=>{
+      if(index>0)lines.push('', '────────────────────', '');
+      lines.push(clientBlock(group.client,group.issues,index));
     });
     return lines.join('\n');
   }
@@ -128,7 +141,7 @@
     if(dlg)return dlg;
     dlg=document.createElement('dialog');
     dlg.id='dailyReportDlg';
-    dlg.innerHTML=`<div class="modal-head"><strong>📋 Reporte diario de pendientes</strong><button class="close" type="button" aria-label="Cerrar">×</button></div><div class="modal-body"><div class="notice" style="margin-bottom:10px">Se arma automáticamente con los asuntos activos. No modifica tus expedientes.</div><textarea id="dailyReportText" aria-label="Reporte diario" style="width:100%;min-height:420px;padding:12px;border:1px solid var(--line);border-radius:12px;resize:vertical;background:#fff;color:var(--ink)"></textarea><div class="toolbar" style="margin-top:12px"><button class="btn" type="button" id="dailyCopyBtn">📋 Copiar reporte</button><button class="btn secondary" type="button" id="dailyShareBtn">📤 Compartir</button><button class="btn light" type="button" id="dailyRefreshBtn">↻ Actualizar</button></div><div id="dailyReportStatus" class="muted" role="status" aria-live="polite"></div></div>`;
+    dlg.innerHTML=`<div class="modal-head"><strong>📋 Reporte diario de pendientes</strong><button class="close" type="button" aria-label="Cerrar">×</button></div><div class="modal-body"><div class="notice" style="margin-bottom:10px">Cada cliente aparece una sola vez y debajo se listan todos sus servicios activos. La ventana de atención pertenece a cada trabajo y solo aparece cuando está registrada.</div><textarea id="dailyReportText" aria-label="Reporte diario" style="width:100%;min-height:420px;padding:12px;border:1px solid var(--line);border-radius:12px;resize:vertical;background:#fff;color:var(--ink)"></textarea><div class="toolbar" style="margin-top:12px"><button class="btn" type="button" id="dailyCopyBtn">📋 Copiar reporte</button><button class="btn secondary" type="button" id="dailyShareBtn">📤 Compartir</button><button class="btn light" type="button" id="dailyRefreshBtn">↻ Actualizar</button></div><div id="dailyReportStatus" class="muted" role="status" aria-live="polite"></div></div>`;
     document.body.appendChild(dlg);
     dlg.querySelector('.close').addEventListener('click',()=>dlg.close());
     dlg.querySelector('#dailyRefreshBtn').addEventListener('click',()=>{
