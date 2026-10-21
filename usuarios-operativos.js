@@ -110,13 +110,33 @@ function operativeClientForm(c){
   clientDlg.showModal();
 }
 
+function operativeIssueDetails(i){
+  const items=[];
+  const add=(label,value)=>{const v=String(value??'').trim();if(v)items.push(`<div class="kv"><b>${esc(label)}</b><br>${esc(v)}</div>`)};
+  add('Dirección del servicio',i.serviceAddress);
+  add('Disponibilidad / ventana',i.clientAvailability||i.appointmentWindow);
+  add('Confirmación de cita',i.appointmentConfirmation);
+  if(i.type==='Trabajo incompleto'){
+    add('Motivo de incompleto',i.incompleteReason);add('Qué falta',i.missingWork);add('Próxima acción',i.nextAction);
+  }
+  if(i.type==='Trabajo futuro / promesa'){
+    add('Promesa / trabajo futuro',i.futurePromise);add('Fecha aproximada',i.futureApproxDate);add('Próximo contacto',i.futureContactDate);
+  }
+  if(i.type==='Facturación')add('Requiere factura',i.billingYes);
+  if(i.type==='Cobro'){
+    add('Total',typeof money==='function'?money(i.total||0):i.total);add('Pagado',typeof money==='function'?money(i.paid||0):i.paid);add('Saldo',typeof money==='function'?money(i.balance||0):i.balance);add('Estado de cobro',i.payState);add('Forma de pago',i.paymentMethod);add('Destino del pago',i.paymentDestination);
+  }
+  return items.length?`<div class="issue-grid">${items.join('')}</div>`:'';
+}
+
 function operativeIssueCard(c,i){
   const m=TYPE_META[i.type]||{icon:'•'};const a=latestIssueActivity(c.id,i.id);const dates=issueDates(i);
   return `<div class="card issue" style="${typeStyle(i.type)}">
-    <div class="issue-head"><div><div class="type-label">${m.icon} ${esc(i.type)}</div><div class="badges"><span class="badge">${esc(i.state||'Pendiente')}</span>${a?`<span class="badge ${statusClass(a.status)}">Técnico: ${esc(a.status)}</span>`:''}</div></div><button class="btn sm" type="button" onclick="reportSimounWork('${c.id}','${i.id}')">📝 Reportar trabajo</button></div>
-    <div style="margin-top:8px">${esc(i.description||'Sin descripción')}</div>
-    ${i.notes?`<div class="muted" style="margin-top:6px">Notas: ${esc(i.notes)}</div>`:''}
-    <div class="issue-grid">${dates.slice(0,5).map(d=>`<div class="kv"><b>${d.label}</b><br>${fmt(d.date)}</div>`).join('')}</div>
+    <div class="issue-head"><div><div class="type-label">${m.icon} ${esc(i.type)}</div><div class="badges"><span class="badge">${esc(i.state||'Pendiente')}</span>${a?`<span class="badge ${statusClass(a.status)}">Reporte: ${esc(a.status)}</span>`:''}</div></div><button class="btn sm" type="button" onclick="reportSimounWork('${c.id}','${i.id}')">📝 Reportar trabajo</button></div>
+    <div style="margin-top:8px"><strong>Trabajo:</strong> ${esc(i.description||'Sin descripción')}</div>
+    ${i.notes?`<div class="muted" style="margin-top:6px"><strong>Notas:</strong> ${esc(i.notes)}</div>`:''}
+    <div class="issue-grid">${dates.slice(0,8).map(d=>`<div class="kv"><b>${d.label}</b><br>${fmt(d.date)}</div>`).join('')}</div>
+    ${operativeIssueDetails(i)}
     ${a?`<div class="notice" style="margin-top:10px"><strong>Último reporte · ${esc(a.status)}</strong><br>${esc(a.note||'Sin nota')}<div class="muted" style="margin-top:4px">${esc(a.actor_email)} · ${stamp(a)}</div></div>`:''}
   </div>`;
 }
@@ -124,15 +144,16 @@ function operativeIssueCard(c,i){
 function operativeClientView(c){
   document.getElementById('clientDlgTitle').textContent=c.name||'Expediente';
   document.getElementById('clientDlgBody').innerHTML=`
-    <div class="notice"><strong>Modo operativo</strong><br>Puedes consultar este expediente y reportar el resultado de cada trabajo. Los datos originales están protegidos contra edición o borrado.</div>
+    <div class="notice"><strong>Modo operativo</strong><br>Puedes consultar toda la información de este expediente y reportar el resultado de cada trabajo. Los datos originales están protegidos contra edición o borrado.</div>
     <div class="card" style="margin-top:12px">
       <div class="row"><div class="kv"><b>Cliente</b><br>${esc(c.name||'Sin nombre')}</div><div class="kv"><b>Empresa / contacto</b><br>${esc([c.company,c.contact].filter(Boolean).join(' · ')||'Sin dato')}</div></div>
       <div class="row" style="margin-top:8px"><div class="kv"><b>Teléfono / WhatsApp</b><br>${esc(c.whatsapp||c.phone||'Sin dato')}</div><div class="kv"><b>Dirección</b><br>${esc(c.address||'Sin dato')}</div></div>
       ${c.notes?`<div class="kv" style="margin-top:8px"><b>Observaciones generales</b><br>${esc(c.notes)}</div>`:''}
+      ${c.billing?`<div class="kv" style="margin-top:8px"><b>Datos de facturación</b><br>${esc(c.billing)}</div>`:''}
     </div>
     <div class="section-title"><h3>Trabajos</h3><button class="btn sm" type="button" onclick="newIssue('${c.id}')">+ Nuevo asunto</button></div>
     <div class="list">${(c.issues||[]).map(i=>operativeIssueCard(c,i)).join('')||'<div class="empty">Todavía no hay trabajos.</div>'}</div>
-    ${(c.docs||[]).length?`<div class="section-title"><h3>Documentos</h3></div><div class="list">${c.docs.map(d=>`<div class="doc"><span>📎 ${esc(d.name)}</span></div>`).join('')}</div>`:''}`;
+    ${(c.docs||[]).length?`<div class="section-title"><h3>Documentos</h3></div><div class="list">${c.docs.map(d=>`<div class="doc"><span>📎 ${esc(d.name)}</span><button class="btn sm secondary" type="button" onclick="downloadDoc('${c.id}','${d.id}')">Abrir</button></div>`).join('')}</div>`:''}`;
   clientDlg.showModal();
 }
 
@@ -178,7 +199,7 @@ window.reportSimounWork=function(cid,iid,preset=''){
   const acts=sync()?.issueActivities?.(cid,iid)||[];
   document.getElementById('issueDlgTitle').textContent='Reportar trabajo · '+(c.name||'Cliente');
   document.getElementById('issueDlgBody').innerHTML=`
-    <div class="card" style="${typeStyle(i.type)};border-left:5px solid var(--type)"><strong>${esc(i.type)}</strong><div style="margin-top:6px">${esc(i.description||'Sin descripción')}</div><div class="muted" style="margin-top:5px">${esc(c.address||'')}</div></div>
+    <div class="card" style="${typeStyle(i.type)};border-left:5px solid var(--type)"><strong>${esc(i.type)}</strong><div style="margin-top:6px">${esc(i.description||'Sin descripción')}</div><div class="muted" style="margin-top:5px">${esc(i.serviceAddress||c.address||'')}</div></div>
     <form id="opWorkReportForm" style="margin-top:12px">
       <div class="field"><label>Resultado del trabajo</label><select name="status"><option ${preset==='Terminado'?'selected':''}>Terminado</option><option ${preset==='Incompleto'?'selected':''}>Incompleto</option><option ${preset==='Pendiente'||!preset?'selected':''}>Pendiente</option></select></div>
       <div class="field"><label>Nota del instalador / seguimiento</label><textarea name="note" required placeholder="Ej. Falta internet del cliente para continuar."></textarea></div>
