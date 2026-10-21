@@ -148,7 +148,8 @@ function updateReportButton(){
   const btn=document.querySelector('#expedientes [data-daily-report]');
   if(!btn)return;
   const type=String(typeof issueTypeFilter!=='undefined'?issueTypeFilter:'Todos');
-  btn.textContent=`📋 Reporte para jefe · ${type}`;
+  const label=`📋 Reporte para jefe · ${type}`;
+  if(btn.textContent!==label)btn.textContent=label;
 }
 
 document.addEventListener('click',e=>{
