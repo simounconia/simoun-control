@@ -46,3 +46,189 @@
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready);else ready();
 })();
+
+// SIMOUN: filtros táctiles + reporte diario para compartir con el jefe.
+// Esta mejora solamente lee los expedientes existentes; no cambia ni migra los datos guardados.
+(function(){
+  'use strict';
+  if(window.__simounDailyReportEnhancement)return;
+  window.__simounDailyReportEnhancement=true;
+
+  function localISODate(d=new Date()){
+    const y=d.getFullYear();
+    const m=String(d.getMonth()+1).padStart(2,'0');
+    const day=String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function localReportDate(d=new Date()){
+    return d.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
+  }
+
+  function nextUsefulDate(issue){
+    if(typeof issueDates!=='function')return '';
+    const dates=issueDates(issue).filter(x=>x.date).sort((a,b)=>a.date.localeCompare(b.date));
+    if(!dates.length)return '';
+    const now=localISODate();
+    const future=dates.find(x=>x.date>=now)||dates[dates.length-1];
+    return `${future.label}: ${typeof fmt==='function'?fmt(future.date):future.date}`;
+  }
+
+  function reportLine(issue,index){
+    const client=issue.client||{};
+    const title=client.name||client.company||'Sin nombre';
+    const company=client.company&&client.company!==title?` · ${client.company}`:'';
+    const description=String(issue.description||'Sin descripción').trim();
+    const details=[];
+    if(issue.state)details.push(`Estado: ${issue.state}`);
+    const date=nextUsefulDate(issue);if(date)details.push(date);
+    if(issue.appointmentWindow)details.push(`Horario: ${issue.appointmentWindow}`);
+    if(issue.type==='Cobro'&&Number(issue.balance||0)>0)details.push(`Saldo: ${typeof money==='function'?money(issue.balance):issue.balance}`);
+    if(issue.type==='Trabajo incompleto'&&issue.nextAction)details.push(`Siguiente: ${String(issue.nextAction).trim()}`);
+    if(issue.type==='Trabajo futuro / promesa'&&issue.futurePromise)details.push(`Promesa: ${String(issue.futurePromise).trim()}`);
+    return `${index+1}. ${title}${company} — ${description}${details.length?`\n   ${details.join(' · ')}`:''}`;
+  }
+
+  function buildDailyReport(){
+    const issues=(typeof activeIssues==='function'?activeIssues():[]).slice();
+    const types=Array.isArray(ISSUE_TYPES)?ISSUE_TYPES:[];
+    const order=new Map(types.map((t,i)=>[t,i]));
+    issues.sort((a,b)=>{
+      const ta=order.has(a.type)?order.get(a.type):999;
+      const tb=order.has(b.type)?order.get(b.type):999;
+      if(ta!==tb)return ta-tb;
+      return String(a.client?.name||'').localeCompare(String(b.client?.name||''),'es');
+    });
+    const lines=[`PENDIENTES SIMOUN · ${localReportDate()}`,`Total: ${issues.length} asunto${issues.length===1?'':'s'} activo${issues.length===1?'':'s'}`,''];
+    if(!issues.length){lines.push('No hay asuntos activos pendientes.');return lines.join('\n');}
+    const grouped=new Map();
+    issues.forEach(issue=>{
+      const key=issue.type||'Sin categoría';
+      if(!grouped.has(key))grouped.set(key,[]);
+      grouped.get(key).push(issue);
+    });
+    const orderedTypes=[...types.filter(t=>grouped.has(t)),...Array.from(grouped.keys()).filter(t=>!order.has(t))];
+    orderedTypes.forEach((type,groupIndex)=>{
+      const rows=grouped.get(type)||[];
+      const meta=typeof TYPE_META!=='undefined'&&TYPE_META[type]?TYPE_META[type]:{icon:'•'};
+      if(groupIndex>0)lines.push('');
+      lines.push(`${meta.icon||'•'} ${type} — ${rows.length}`);
+      rows.forEach((issue,index)=>lines.push(reportLine(issue,index)));
+    });
+    return lines.join('\n');
+  }
+
+  function ensureReportDialog(){
+    let dlg=document.getElementById('dailyReportDlg');
+    if(dlg)return dlg;
+    dlg=document.createElement('dialog');
+    dlg.id='dailyReportDlg';
+    dlg.innerHTML=`<div class="modal-head"><strong>📋 Reporte diario de pendientes</strong><button class="close" type="button" aria-label="Cerrar">×</button></div><div class="modal-body"><div class="notice" style="margin-bottom:10px">Se arma automáticamente con los asuntos activos. No modifica tus expedientes.</div><textarea id="dailyReportText" aria-label="Reporte diario" style="width:100%;min-height:340px;padding:12px;border:1px solid var(--line);border-radius:12px;resize:vertical;background:#fff;color:var(--ink)"></textarea><div class="toolbar" style="margin-top:12px"><button class="btn" type="button" id="dailyCopyBtn">📋 Copiar reporte</button><button class="btn secondary" type="button" id="dailyShareBtn">📤 Compartir</button><button class="btn light" type="button" id="dailyRefreshBtn">↻ Actualizar</button></div><div id="dailyReportStatus" class="muted" role="status" aria-live="polite"></div></div>`;
+    document.body.appendChild(dlg);
+    dlg.querySelector('.close').addEventListener('click',()=>dlg.close());
+    dlg.querySelector('#dailyRefreshBtn').addEventListener('click',()=>{
+      dlg.querySelector('#dailyReportText').value=buildDailyReport();
+      dlg.querySelector('#dailyReportStatus').textContent='Reporte actualizado.';
+    });
+    dlg.querySelector('#dailyCopyBtn').addEventListener('click',async()=>{
+      const textarea=dlg.querySelector('#dailyReportText');
+      const text=textarea.value;
+      let copied=false;
+      try{
+        if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(text);copied=true;}
+      }catch{}
+      if(!copied){
+        textarea.focus();textarea.select();
+        try{copied=document.execCommand('copy');}catch{}
+        textarea.setSelectionRange(0,0);
+      }
+      dlg.querySelector('#dailyReportStatus').textContent=copied?'✅ Copiado. Ya puedes pegarlo en WhatsApp.':'Selecciona el texto y usa Copiar.';
+    });
+    const share=dlg.querySelector('#dailyShareBtn');
+    if(typeof navigator.share!=='function')share.style.display='none';
+    else share.addEventListener('click',async()=>{
+      try{await navigator.share({title:'Pendientes SIMOUN',text:dlg.querySelector('#dailyReportText').value});}
+      catch(e){if(e&&e.name!=='AbortError')dlg.querySelector('#dailyReportStatus').textContent='No se pudo abrir el menú para compartir.';}
+    });
+    return dlg;
+  }
+
+  function openDailyReport(){
+    const dlg=ensureReportDialog();
+    dlg.querySelector('#dailyReportText').value=buildDailyReport();
+    dlg.querySelector('#dailyReportStatus').textContent='';
+    dlg.showModal();
+  }
+  window.openDailyReport=openDailyReport;
+
+  function addReportButtonToExpedientes(){
+    const root=document.getElementById('expedientes');
+    if(!root)return;
+    const toolbar=root.querySelector('.toolbar');
+    if(!toolbar||toolbar.querySelector('[data-daily-report]'))return;
+    const btn=document.createElement('button');
+    btn.type='button';btn.className='btn secondary';btn.dataset.dailyReport='1';
+    btn.textContent='📋 Reporte para jefe';
+    btn.addEventListener('click',openDailyReport);
+    toolbar.appendChild(btn);
+  }
+
+  function makeTypeCardsTappable(){
+    const buttons=Array.from(document.querySelectorAll('#expedientes .type-filter'));
+    if(!buttons.length)return;
+    const types=['Todos',...(Array.isArray(ISSUE_TYPES)?ISSUE_TYPES:[])];
+    buttons.forEach((btn,index)=>{
+      const type=types[index];
+      if(!type)return;
+      btn.type='button';
+      btn.style.touchAction='manipulation';
+      btn.removeAttribute('onclick');
+      btn.onclick=null;
+      btn.addEventListener('click',()=>{
+        issueTypeFilter=type;
+        const q=document.getElementById('clientSearch')?.value||'';
+        renderClients(q);
+        if(type!=='Todos')requestAnimationFrame(()=>{
+          const target=document.querySelector('#expedientes .review-list');
+          if(target){target.style.scrollMarginTop='16px';target.scrollIntoView({behavior:'smooth',block:'start'});}
+        });
+      });
+    });
+  }
+
+  function enhanceExpedientes(){
+    addReportButtonToExpedientes();
+    makeTypeCardsTappable();
+  }
+
+  function addReportButtonToPendientes(){
+    const root=document.getElementById('pendientes');
+    if(!root||root.querySelector('[data-daily-report]'))return;
+    const bar=document.createElement('div');
+    bar.className='toolbar';bar.style.marginBottom='12px';
+    const btn=document.createElement('button');
+    btn.type='button';btn.className='btn';btn.dataset.dailyReport='1';btn.textContent='📋 Reporte para jefe';
+    btn.addEventListener('click',openDailyReport);
+    bar.appendChild(btn);root.prepend(bar);
+  }
+
+  function installEnhancements(){
+    if(typeof renderClients==='function'&&!renderClients.__dailyEnhanced){
+      const baseRenderClients=renderClients;
+      const wrapped=function(q=''){const result=baseRenderClients(q);enhanceExpedientes();return result;};
+      wrapped.__dailyEnhanced=true;
+      renderClients=wrapped;
+    }
+    if(typeof renderPendientes==='function'&&!renderPendientes.__dailyEnhanced){
+      const baseRenderPendientes=renderPendientes;
+      const wrapped=function(){const result=baseRenderPendientes();addReportButtonToPendientes();return result;};
+      wrapped.__dailyEnhanced=true;
+      renderPendientes=wrapped;
+    }
+    enhanceExpedientes();
+    addReportButtonToPendientes();
+  }
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installEnhancements);
+  else installEnhancements();
+})();
