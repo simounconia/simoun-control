@@ -79,7 +79,9 @@
     const title=client.name||client.company||'Sin nombre';
     const company=client.company&&client.company!==title?` · ${client.company}`:'';
     const description=String(issue.description||'Sin descripción').trim();
+    const address=String(issue.serviceAddress||client.address||'').trim();
     const details=[];
+    if(address)details.push(`Dirección: ${address}`);
     if(issue.state)details.push(`Estado: ${issue.state}`);
     const date=nextUsefulDate(issue);if(date)details.push(date);
     if(issue.appointmentWindow)details.push(`Horario: ${issue.appointmentWindow}`);
