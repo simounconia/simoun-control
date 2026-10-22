@@ -271,3 +271,13 @@
     runSearch(el.value);
   },true);
 })();
+
+// Carga el guardado flexible de expedientes/asuntos incompletos.
+(function(){
+  if(window.__simounFlexibleSaveLoader)return;
+  window.__simounFlexibleSaveLoader=true;
+  const s=document.createElement('script');
+  s.src='./guardado-flexible.js?v=20261022-1';
+  s.defer=true;
+  document.body.appendChild(s);
+})();
