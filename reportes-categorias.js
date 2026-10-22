@@ -11,19 +11,35 @@
   }
 
   function currentType(){
-    try{
-      return reportTypes().includes(issueTypeFilter)?issueTypeFilter:'Todos';
-    }catch{return 'Todos';}
+    try{return reportTypes().includes(issueTypeFilter)?issueTypeFilter:'Todos'}catch{return 'Todos'}
   }
 
-  function clean(v,fallback='No registrado'){
+  function clean(v,fallback=''){
     const text=String(v??'').trim();
     return text||fallback;
   }
-
-  function dateLabel(){
-    return new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
+  function has(v){
+    if(v===null||v===undefined)return false;
+    if(typeof v==='string')return v.trim()!=='';
+    if(typeof v==='number')return Number.isFinite(v)&&v!==0;
+    if(typeof v==='boolean')return v===true;
+    if(Array.isArray(v))return v.length>0;
+    if(typeof v==='object')return Object.keys(v).length>0;
+    return true;
   }
+  function add(lines,label,value,prefix=''){
+    if(!has(value))return;
+    lines.push(`${prefix}${label}: ${clean(value)}`);
+  }
+  function dateText(v){
+    if(!has(v))return '';
+    const s=String(v);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(s))return typeof fmt==='function'?fmt(s):s;
+    const d=new Date(s);
+    return Number.isNaN(d.getTime())?s:d.toLocaleString('es-MX');
+  }
+  function moneyText(v){return typeof money==='function'?money(Number(v||0)):String(v||0)}
+  function dateLabel(){return new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'})}
 
   function matchingIssues(type){
     let rows=[];
@@ -33,39 +49,152 @@
     rows.sort((a,b)=>{
       const nc=String(a.client?.name||'').localeCompare(String(b.client?.name||''),'es');
       if(nc)return nc;
-      const ad=String(a.createdDate||'');
-      const bd=String(b.createdDate||'');
+      const ad=String(a.createdDate||''),bd=String(b.createdDate||'');
       if(ad!==bd)return ad.localeCompare(bd);
       return String(a.type||'').localeCompare(String(b.type||''),'es');
     });
     return rows;
   }
 
-  function serviceLines(issue,index){
-    const lines=[
-      `   Servicio ${index+1}`,
-      `   Tipo de servicio: ${clean(issue.type,'Sin tipo')}`,
-      `   Estatus: ${clean(issue.state,'Pendiente')}`
-    ];
-    const windowText=String(issue.clientAvailability||issue.appointmentWindow||issue.proposedAppointmentWindow||'').trim();
-    if(windowText)lines.push(`   Ventana de atención: ${windowText}`);
-    if(issue.appointmentDate)lines.push(`   Fecha de cita: ${typeof fmt==='function'?fmt(issue.appointmentDate):issue.appointmentDate}`);
-    lines.push(`   Descripción del trabajo: ${clean(issue.description,'Sin descripción')}`);
-    const notes=String(issue.notes||'').trim();
-    if(notes)lines.push(`   Notas: ${notes}`);
-    if(issue.type==='Cobro'){
-      if(Number(issue.total||0)>0)lines.push(`   Total: ${typeof money==='function'?money(issue.total):issue.total}`);
-      if(Number(issue.paid||0)>0)lines.push(`   Pagado: ${typeof money==='function'?money(issue.paid):issue.paid}`);
-      if(Number(issue.balance||0)>0)lines.push(`   Saldo pendiente: ${typeof money==='function'?money(issue.balance):issue.balance}`);
+  function workReports(client,issue){
+    try{
+      const rows=window.SimounSync?.issueActivities?.(client?.id,issue?.id)||[];
+      return Array.isArray(rows)?rows:[];
+    }catch{return []}
+  }
+
+  function issueHistoryLines(issue,prefix='      '){
+    const history=Array.isArray(issue.history)?issue.history:[];
+    if(!history.length)return [];
+    const lines=[`${prefix}Historial del asunto:`];
+    history.forEach(h=>{
+      const bits=[dateText(h.date),clean(h.action),clean(h.detail)].filter(Boolean);
+      if(bits.length)lines.push(`${prefix}- ${bits.join(' · ')}`);
+    });
+    return lines.length>1?lines:[];
+  }
+
+  function serviceLines(client,issue,index){
+    const p='   ',d='      ';
+    const lines=[`${p}Servicio ${index+1}`];
+    add(lines,'Tipo de servicio',issue.type,d);
+    add(lines,'Estatus',issue.state,d);
+    if(issue.active===false)lines.push(`${d}Asunto activo: No`);
+    add(lines,'Descripción del trabajo',issue.description,d);
+    add(lines,'Notas',issue.notes,d);
+    add(lines,'Dirección del servicio',issue.serviceAddress,d);
+    add(lines,'Creado por',issue.createdBy,d);
+    if(has(issue.createdAt))lines.push(`${d}Fecha de alta: ${dateText(issue.createdAt)}`);
+
+    if(has(issue.createdDate))lines.push(`${d}Fecha de creación: ${dateText(issue.createdDate)}`);
+    if(has(issue.followupDate))lines.push(`${d}Fecha de seguimiento: ${dateText(issue.followupDate)}`);
+    if(has(issue.actionDate))lines.push(`${d}Fecha de acción: ${dateText(issue.actionDate)}`);
+    if(has(issue.appointmentDate))lines.push(`${d}Fecha de cita: ${dateText(issue.appointmentDate)}`);
+    add(lines,'Hora / ventana de cita',issue.appointmentWindow,d);
+    add(lines,'Disponibilidad del cliente',issue.clientAvailability,d);
+    add(lines,'Confirmación de cita',issue.appointmentConfirmation,d);
+    if(has(issue.proposedAppointmentDate))lines.push(`${d}Fecha propuesta: ${dateText(issue.proposedAppointmentDate)}`);
+    add(lines,'Horario propuesto por el jefe',issue.proposedAppointmentWindow,d);
+    add(lines,'Persona que recibirá',issue.appointmentReceiver,d);
+    add(lines,'Nota de coordinación',issue.appointmentNote,d);
+    if(has(issue.plannedEndDate))lines.push(`${d}Fecha prevista de término: ${dateText(issue.plannedEndDate)}`);
+    if(has(issue.realEndDate))lines.push(`${d}Fecha real de término: ${dateText(issue.realEndDate)}`);
+
+    if(issue.reported===true)lines.push(`${d}Ya fue reportado: Sí`);
+    if(has(issue.reportedDate))lines.push(`${d}Fecha en que se reportó: ${dateText(issue.reportedDate)}`);
+    add(lines,'Motivo de trabajo incompleto',issue.incompleteReason,d);
+    add(lines,'Qué falta',issue.missingWork,d);
+    add(lines,'Próxima acción',issue.nextAction,d);
+    add(lines,'Trabajo futuro / promesa',issue.futurePromise,d);
+    if(has(issue.futureApproxDate))lines.push(`${d}Fecha aproximada: ${dateText(issue.futureApproxDate)}`);
+    if(has(issue.futureContactDate))lines.push(`${d}Próximo contacto SIMOUN: ${dateText(issue.futureContactDate)}`);
+    add(lines,'Requiere factura',issue.billingYes,d);
+
+    if(has(issue.total))lines.push(`${d}Total a cobrar: ${moneyText(issue.total)}`);
+    if(has(issue.paid))lines.push(`${d}Cantidad pagada: ${moneyText(issue.paid)}`);
+    if(has(issue.balance))lines.push(`${d}Saldo pendiente: ${moneyText(issue.balance)}`);
+    add(lines,'Estado del cobro',issue.payState,d);
+    if(has(issue.paymentDate))lines.push(`${d}Fecha de pago: ${dateText(issue.paymentDate)}`);
+    add(lines,'Forma de pago',issue.paymentMethod,d);
+    add(lines,'Destino del pago',issue.paymentDestination,d);
+
+    const reports=workReports(client,issue);
+    if(reports.length){
+      lines.push(`${d}Reportes / anotaciones del equipo:`);
+      reports.forEach(r=>{
+        const who=clean(r.actor_email||r.actor_name||r.actor_role);
+        const bits=[dateText(r.created_at),clean(r.status),clean(r.note),who].filter(Boolean);
+        if(bits.length)lines.push(`${d}- ${bits.join(' · ')}`);
+      });
     }
-    if(issue.type==='Trabajo incompleto'){
-      if(String(issue.incompleteReason||'').trim())lines.push(`   Motivo: ${String(issue.incompleteReason).trim()}`);
-      if(String(issue.missingWork||'').trim())lines.push(`   Qué falta: ${String(issue.missingWork).trim()}`);
-      if(String(issue.nextAction||'').trim())lines.push(`   Próxima acción: ${String(issue.nextAction).trim()}`);
+
+    lines.push(...issueHistoryLines(issue,d));
+    return lines;
+  }
+
+  function financeLines(c){
+    const a=c?.finanzasCliente;
+    if(!a||typeof a!=='object')return [];
+    const lines=[];
+    if(has(a.saldo))lines.push(`Saldo pendiente del cliente: ${moneyText(a.saldo)}`);
+    if(has(a.due))lines.push(`Fecha prometida de pago: ${dateText(a.due)}`);
+    add(lines,'Notas de cobro',a.notes);
+    const inv=a.invoice||{};
+    add(lines,'Factura requerida',inv.needed);
+    add(lines,'Estado de factura',inv.status);
+    add(lines,'Folio de factura',inv.folio);
+    if(has(inv.issued))lines.push(`Fecha de emisión: ${dateText(inv.issued)}`);
+    if(has(inv.delivered))lines.push(`Fecha de entrega: ${dateText(inv.delivered)}`);
+    const payments=Array.isArray(a.payments)?a.payments:[];
+    if(payments.length){
+      lines.push('Historial de pagos:');
+      payments.forEach(p=>{
+        const bits=[dateText(p.date),has(p.amount)?moneyText(p.amount):'',clean(p.method),clean(p.note),p.void?'ANULADO':''].filter(Boolean);
+        if(bits.length)lines.push(`- ${bits.join(' · ')}`);
+      });
     }
-    if(issue.type==='Trabajo futuro / promesa'&&String(issue.futurePromise||'').trim()){
-      lines.push(`   Promesa / trabajo futuro: ${String(issue.futurePromise).trim()}`);
+    return lines;
+  }
+
+  function clientHistoryLines(c){
+    const history=Array.isArray(c?.history)?c.history:[];
+    if(!history.length)return [];
+    const lines=['Historial de la ficha:'];
+    history.forEach(h=>{
+      const bits=[dateText(h.date),clean(h.action),clean(h.detail)].filter(Boolean);
+      if(bits.length)lines.push(`- ${bits.join(' · ')}`);
+    });
+    return lines.length>1?lines:[];
+  }
+
+  function clientHeaderLines(c,issues,index){
+    const lines=[`${index+1}. CLIENTE: ${clean(c.name,'Sin nombre')}`];
+    add(lines,'Empresa',c.company);
+    add(lines,'Contacto',c.contact);
+    add(lines,'Teléfono',c.phone);
+    add(lines,'WhatsApp',c.whatsapp);
+    add(lines,'Correo',c.email);
+    const fallbackAddress=issues.map(i=>clean(i.serviceAddress)).find(Boolean)||'';
+    add(lines,'Dirección',c.address||fallbackAddress);
+    add(lines,'Observaciones generales',c.notes);
+    add(lines,'Datos de facturación',c.billing);
+    add(lines,'Creado por',c.createdBy);
+    if(has(c.createdAt))lines.push(`Fecha de alta: ${dateText(c.createdAt)}`);
+
+    const docs=Array.isArray(c.docs)?c.docs:[];
+    if(docs.length){
+      lines.push('Documentos adjuntos:');
+      docs.forEach(doc=>{
+        const size=Number(doc.size||0)>0?` · ${Math.round(Number(doc.size)/1024)} KB`:'';
+        lines.push(`- ${clean(doc.name,'Documento')}${size}`);
+      });
     }
+
+    const finance=financeLines(c);
+    if(finance.length){lines.push('');lines.push('DATOS DE COBRO / FACTURACIÓN');lines.push(...finance)}
+    const hist=clientHistoryLines(c);
+    if(hist.length){lines.push('');lines.push(...hist)}
+    lines.push(`Servicios en este reporte: ${issues.length}`);
     return lines;
   }
 
@@ -80,27 +209,15 @@
     });
     const groups=Array.from(grouped.values());
     const title=type==='Todos'?'TODOS LOS PENDIENTES':String(type).toUpperCase();
-    const lines=[
-      `SIMOUN · REPORTE ${title} · ${dateLabel()}`,
-      `Clientes: ${groups.length} · Servicios activos: ${rows.length}`,
-      ''
-    ];
-    if(!rows.length){
-      lines.push(`No hay asuntos activos en ${type==='Todos'?'esta lista':type}.`);
-      return lines.join('\n');
-    }
+    const lines=[`SIMOUN · REPORTE ${title} · ${dateLabel()}`,`Clientes: ${groups.length} · Servicios activos: ${rows.length}`,''];
+    if(!rows.length){lines.push(`No hay asuntos activos en ${type==='Todos'?'esta lista':type}.`);return lines.join('\n')}
+
     groups.forEach((group,clientIndex)=>{
-      if(clientIndex)lines.push('', '────────────────────', '');
-      const c=group.client||{};
-      const fallbackAddress=group.issues.map(i=>String(i.serviceAddress||'').trim()).find(Boolean)||'';
-      lines.push(`${clientIndex+1}. CLIENTE: ${clean(c.name,'Sin nombre')}`);
-      lines.push(`WhatsApp: ${clean(c.whatsapp||c.phone,'No registrado')}`);
-      lines.push(`Dirección: ${clean(c.address||fallbackAddress,'No registrada')}`);
-      if(String(c.notes||'').trim())lines.push(`Observaciones generales: ${String(c.notes).trim()}`);
-      lines.push(`Servicios en este reporte: ${group.issues.length}`);
+      if(clientIndex)lines.push('','────────────────────','');
+      lines.push(...clientHeaderLines(group.client||{},group.issues,clientIndex));
       group.issues.forEach((issue,serviceIndex)=>{
         lines.push('');
-        lines.push(...serviceLines(issue,serviceIndex));
+        lines.push(...serviceLines(group.client||{},issue,serviceIndex));
       });
     });
     return lines.join('\n');
@@ -112,60 +229,34 @@
     dlg=document.createElement('dialog');
     dlg.id='categoryReportDlg';
     dlg.innerHTML=`
-      <div class="modal-head">
-        <strong>📋 Reporte para jefe</strong>
-        <button class="close" type="button" aria-label="Cerrar">×</button>
-      </div>
+      <div class="modal-head"><strong>📋 Reporte para jefe</strong><button class="close" type="button" aria-label="Cerrar">×</button></div>
       <div class="modal-body">
-        <div class="field" style="margin-bottom:10px">
-          <label>Qué quieres reportar</label>
-          <select id="categoryReportType"></select>
-        </div>
-        <div class="notice" style="margin-bottom:10px">El reporte incluye solamente asuntos activos. Puedes sacar uno de Instalación, Cotización, Reparación, Mantenimiento, etc., o uno de Todos.</div>
+        <div class="field" style="margin-bottom:10px"><label>Qué quieres reportar</label><select id="categoryReportType"></select></div>
+        <div class="notice" style="margin-bottom:10px">Incluye solamente asuntos activos de la categoría elegida. Dentro de cada ficha aparecen todos los campos que estén llenados; los campos vacíos se omiten.</div>
         <textarea id="categoryReportText" aria-label="Reporte por categoría" style="width:100%;min-height:420px;padding:12px;border:1px solid var(--line);border-radius:12px;resize:vertical;background:#fff;color:var(--ink)"></textarea>
-        <div class="toolbar" style="margin-top:12px">
-          <button class="btn" type="button" id="categoryCopyBtn">📋 Copiar</button>
-          <button class="btn secondary" type="button" id="categoryShareBtn">📤 Compartir</button>
-          <button class="btn light" type="button" id="categoryRefreshBtn">↻ Actualizar</button>
-        </div>
+        <div class="toolbar" style="margin-top:12px"><button class="btn" type="button" id="categoryCopyBtn">📋 Copiar</button><button class="btn secondary" type="button" id="categoryShareBtn">📤 Compartir</button><button class="btn light" type="button" id="categoryRefreshBtn">↻ Actualizar</button></div>
         <div id="categoryReportStatus" class="muted" role="status" aria-live="polite"></div>
       </div>`;
     document.body.appendChild(dlg);
-    const select=dlg.querySelector('#categoryReportType');
-    const textarea=dlg.querySelector('#categoryReportText');
-    const status=dlg.querySelector('#categoryReportStatus');
-    const refresh=()=>{
-      textarea.value=buildReport(select.value||'Todos');
-      status.textContent='';
-    };
+    const select=dlg.querySelector('#categoryReportType'),textarea=dlg.querySelector('#categoryReportText'),status=dlg.querySelector('#categoryReportStatus');
+    const refresh=()=>{textarea.value=buildReport(select.value||'Todos');status.textContent=''};
     dlg.querySelector('.close').addEventListener('click',()=>dlg.close());
     select.addEventListener('change',refresh);
-    dlg.querySelector('#categoryRefreshBtn').addEventListener('click',()=>{refresh();status.textContent='Reporte actualizado.';});
+    dlg.querySelector('#categoryRefreshBtn').addEventListener('click',()=>{refresh();status.textContent='Reporte actualizado.'});
     dlg.querySelector('#categoryCopyBtn').addEventListener('click',async()=>{
       let ok=false;
-      try{
-        if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(textarea.value);ok=true;}
-      }catch{}
-      if(!ok){
-        textarea.focus();textarea.select();
-        try{ok=document.execCommand('copy');}catch{}
-        textarea.setSelectionRange(0,0);
-      }
+      try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(textarea.value);ok=true}}catch{}
+      if(!ok){textarea.focus();textarea.select();try{ok=document.execCommand('copy')}catch{}textarea.setSelectionRange(0,0)}
       status.textContent=ok?'✅ Copiado. Ya puedes pegarlo en WhatsApp.':'Selecciona el texto y usa Copiar.';
     });
     const share=dlg.querySelector('#categoryShareBtn');
     if(typeof navigator.share!=='function')share.style.display='none';
-    else share.addEventListener('click',async()=>{
-      try{await navigator.share({title:'Reporte SIMOUN · '+(select.value||'Todos'),text:textarea.value});}
-      catch(e){if(e&&e.name!=='AbortError')status.textContent='No se pudo abrir el menú para compartir.';}
-    });
+    else share.addEventListener('click',async()=>{try{await navigator.share({title:'Reporte SIMOUN · '+(select.value||'Todos'),text:textarea.value})}catch(e){if(e&&e.name!=='AbortError')status.textContent='No se pudo abrir el menú para compartir.'}});
     return dlg;
   }
 
   function openCategoryReport(type=currentType()){
-    const dlg=ensureDialog();
-    const select=dlg.querySelector('#categoryReportType');
-    const types=reportTypes();
+    const dlg=ensureDialog(),select=dlg.querySelector('#categoryReportType'),types=reportTypes();
     select.innerHTML=types.map(t=>`<option value="${String(t).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}">${t}</option>`).join('');
     select.value=types.includes(type)?type:'Todos';
     dlg.querySelector('#categoryReportText').value=buildReport(select.value);
@@ -178,59 +269,35 @@
     root.querySelectorAll('[data-daily-report]').forEach(old=>{
       if(old.dataset.categoryReportReady==='1')return;
       const btn=old.cloneNode(true);
-      btn.dataset.categoryReportReady='1';
-      btn.textContent='📋 Reporte para jefe';
+      btn.dataset.categoryReportReady='1';btn.textContent='📋 Reporte para jefe';
       btn.addEventListener('click',()=>openCategoryReport(currentType()));
       old.replaceWith(btn);
     });
   }
 
   function addCategoryButton(){
-    const root=document.getElementById('expedientes');
-    if(!root)return;
-    const list=root.querySelector('.review-list');
-    if(!list)return;
-    const title=list.previousElementSibling;
-    if(!title||title.querySelector('[data-category-report-one]'))return;
-    const type=currentType();
-    if(type==='Todos')return;
+    const root=document.getElementById('expedientes');if(!root)return;
+    const list=root.querySelector('.review-list');if(!list)return;
+    const title=list.previousElementSibling;if(!title||title.querySelector('[data-category-report-one]'))return;
+    const type=currentType();if(type==='Todos')return;
     const btn=document.createElement('button');
-    btn.type='button';
-    btn.className='btn sm secondary';
-    btn.dataset.categoryReportOne='1';
-    btn.textContent=`📋 Reporte de ${type}`;
-    btn.addEventListener('click',()=>openCategoryReport(type));
-    title.appendChild(btn);
+    btn.type='button';btn.className='btn sm secondary';btn.dataset.categoryReportOne='1';btn.textContent=`📋 Reporte de ${type}`;
+    btn.addEventListener('click',()=>openCategoryReport(type));title.appendChild(btn);
   }
 
-  function enhance(){
-    replaceOldReportButtons(document);
-    addCategoryButton();
-  }
-
+  function enhance(){replaceOldReportButtons(document);addCategoryButton()}
   function install(){
     if(typeof renderClients==='function'&&!renderClients.__categoryReportEnhanced){
-      const base=renderClients;
-      const wrapped=function(q=''){const result=base(q);enhance();return result;};
-      wrapped.__categoryReportEnhanced=true;
-      renderClients=wrapped;
+      const base=renderClients;const wrapped=function(q=''){const result=base(q);enhance();return result};wrapped.__categoryReportEnhanced=true;renderClients=wrapped;
     }
     if(typeof renderPendientes==='function'&&!renderPendientes.__categoryReportEnhanced){
-      const base=renderPendientes;
-      const wrapped=function(){const result=base();enhance();return result;};
-      wrapped.__categoryReportEnhanced=true;
-      renderPendientes=wrapped;
+      const base=renderPendientes;const wrapped=function(){const result=base();enhance();return result};wrapped.__categoryReportEnhanced=true;renderPendientes=wrapped;
     }
     enhance();
     const root=document.getElementById('expedientes');
-    if(root){
-      const obs=new MutationObserver(()=>enhance());
-      obs.observe(root,{childList:true,subtree:true});
-    }
+    if(root){const obs=new MutationObserver(()=>enhance());obs.observe(root,{childList:true,subtree:true})}
   }
-
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);
-  else install();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
 })();
 
 // Buscador de Expedientes: permite escribir de corrido sin perder el foco.
@@ -239,36 +306,22 @@
   if(window.__simounContinuousClientSearch)return;
   window.__simounContinuousClientSearch=true;
   let timer=null;
-
   function runSearch(value){
     if(typeof window.renderClients!=='function')return;
     window.renderClients(value);
     requestAnimationFrame(()=>{
-      const next=document.getElementById('clientSearch');
-      if(!next)return;
+      const next=document.getElementById('clientSearch');if(!next)return;
       try{next.focus({preventScroll:true})}catch{next.focus()}
-      const end=next.value.length;
-      try{next.setSelectionRange(end,end)}catch{}
+      const end=next.value.length;try{next.setSelectionRange(end,end)}catch{}
     });
   }
-
   document.addEventListener('input',e=>{
-    const el=e.target;
-    if(!(el instanceof HTMLInputElement)||el.id!=='clientSearch')return;
-    const value=el.value;
-    // Evita el oninput original, que reconstruye el campo y deja el cursor afuera.
-    e.stopImmediatePropagation();
-    clearTimeout(timer);
-    timer=setTimeout(()=>runSearch(value),140);
+    const el=e.target;if(!(el instanceof HTMLInputElement)||el.id!=='clientSearch')return;
+    const value=el.value;e.stopImmediatePropagation();clearTimeout(timer);timer=setTimeout(()=>runSearch(value),140);
   },true);
-
   document.addEventListener('keydown',e=>{
-    const el=e.target;
-    if(!(el instanceof HTMLInputElement)||el.id!=='clientSearch'||e.key!=='Enter')return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    clearTimeout(timer);
-    runSearch(el.value);
+    const el=e.target;if(!(el instanceof HTMLInputElement)||el.id!=='clientSearch'||e.key!=='Enter')return;
+    e.preventDefault();e.stopImmediatePropagation();clearTimeout(timer);runSearch(el.value);
   },true);
 })();
 
@@ -276,8 +329,5 @@
 (function(){
   if(window.__simounFlexibleSaveLoader)return;
   window.__simounFlexibleSaveLoader=true;
-  const s=document.createElement('script');
-  s.src='./guardado-flexible.js?v=20261022-1';
-  s.defer=true;
-  document.body.appendChild(s);
+  const s=document.createElement('script');s.src='./guardado-flexible.js?v=20261022-1';s.defer=true;document.body.appendChild(s);
 })();
