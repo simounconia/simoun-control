@@ -232,3 +232,42 @@
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);
   else install();
 })();
+
+// Buscador de Expedientes: permite escribir de corrido sin perder el foco.
+(function(){
+  'use strict';
+  if(window.__simounContinuousClientSearch)return;
+  window.__simounContinuousClientSearch=true;
+  let timer=null;
+
+  function runSearch(value){
+    if(typeof window.renderClients!=='function')return;
+    window.renderClients(value);
+    requestAnimationFrame(()=>{
+      const next=document.getElementById('clientSearch');
+      if(!next)return;
+      try{next.focus({preventScroll:true})}catch{next.focus()}
+      const end=next.value.length;
+      try{next.setSelectionRange(end,end)}catch{}
+    });
+  }
+
+  document.addEventListener('input',e=>{
+    const el=e.target;
+    if(!(el instanceof HTMLInputElement)||el.id!=='clientSearch')return;
+    const value=el.value;
+    // Evita el oninput original, que reconstruye el campo y deja el cursor afuera.
+    e.stopImmediatePropagation();
+    clearTimeout(timer);
+    timer=setTimeout(()=>runSearch(value),140);
+  },true);
+
+  document.addEventListener('keydown',e=>{
+    const el=e.target;
+    if(!(el instanceof HTMLInputElement)||el.id!=='clientSearch'||e.key!=='Enter')return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    clearTimeout(timer);
+    runSearch(el.value);
+  },true);
+})();
