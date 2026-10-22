@@ -5,7 +5,7 @@
 if(window.__simounFlexibleSave)return;
 window.__simounFlexibleSave=true;
 
-const FLEX_FORMS=new Set(['clientForm','quickIntakeForm','opClientForm','opIssueForm']);
+const FLEX_FORMS=new Set(['clientForm','issueForm','quickIntakeForm','opClientForm','opIssueForm','opWorkReportForm']);
 
 function relax(root=document){
   FLEX_FORMS.forEach(id=>{
@@ -51,6 +51,14 @@ function makeQuickIssue(f,address){
   issue.history.push({date:new Date().toISOString(),action:'Solicitud rápida registrada',detail:address?'Dirección: '+address:'Información pendiente de completar'});
   return issue;
 }
+
+// Si el técnico/jefe solo marca el estado y deja la nota vacía, conserva también ese reporte.
+document.addEventListener('submit',e=>{
+  const form=e.target;
+  if(!(form instanceof HTMLFormElement)||form.id!=='opWorkReportForm')return;
+  const note=form.elements?.note;
+  if(note&&!String(note.value||'').trim())note.value='Sin nota';
+},true);
 
 // Sustituye únicamente el guardado de Solicitud rápida para permitir registros parciales.
 document.addEventListener('submit',async e=>{
