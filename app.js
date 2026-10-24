@@ -203,9 +203,49 @@ function pendingRows(){
   activeIssues().forEach(i=>{const ds=issueDates(i);if(!ds.length)rows.push({group:'Sin fecha',date:'',issue:i,label:'Sin fecha asignada'});ds.forEach(d=>rows.push({group:d.date<t?'Vencidos':d.date===t?'Hoy':'Próximos',date:d.date,issue:i,label:d.label}));if(i.state==='Esperando al cliente')rows.push({group:'Esperando al cliente',date:'',issue:i,label:'Estado'});if(i.state==='Esperando autorización')rows.push({group:'Esperando autorización',date:'',issue:i,label:'Estado'});if(i.type==='Trabajo incompleto')rows.push({group:'Trabajo incompleto',date:i.actionDate||i.followupDate||'',issue:i,label:'Trabajo incompleto'});if(i.type==='Cobro'&&i.payState!=='Pagado')rows.push({group:'Cobros pendientes',date:i.paymentDate||'',issue:i,label:'Cobro · '+money(i.balance||0)})});
   return rows;
 }
+let pendingPriorityFilter='Todos', pendingOrder='manual', pendingDrag=null;
+function pendingKey(i){return JSON.stringify([i.client.id,i.id])}
+function pendingOrdered(){
+  const list=activeIssues(), rank={Urgente:0,Importante:1,Normal:2};
+  return list.sort((a,b)=>pendingOrder==='priority'?(rank[a.pendingPriority||'Normal']-rank[b.pendingPriority||'Normal']||((a.pendingRank??1e12)-(b.pendingRank??1e12))):((a.pendingRank??1e12)-(b.pendingRank??1e12)));
+}
+function pendingMove(from,to){
+  const list=pendingOrdered(),a=list.findIndex(i=>pendingKey(i)===from),b=list.findIndex(i=>pendingKey(i)===to);
+  if(a<0||b<0||a===b)return;
+  const [item]=list.splice(a,1);list.splice(b,0,item);
+  list.forEach((i,n)=>{state.clients.find(c=>c.id===i.client.id).issues.find(x=>x.id===i.id).pendingRank=n});
+  pendingOrder='manual';save();
+}
 function renderPendientes(){
-  const groups=['Todos','Vencidos','Hoy','Próximos','Sin fecha','Esperando al cliente','Esperando autorización','Trabajo incompleto','Cobros pendientes'];let rows=pendingRows();if(pendingFilter!=='Todos')rows=rows.filter(r=>r.group===pendingFilter);rows.sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
-  document.getElementById('pendientes').innerHTML=`<div class="filters">${groups.map(g=>`<button class="filter ${g===pendingFilter?'active':''}" onclick="pendingFilter=${JSON.stringify(g)};renderPendientes()">${g}</button>`).join('')}</div><div class="list" style="margin-top:12px">${rows.map(r=>`<div class="card pending-item" style="${typeStyle(r.issue.type)};border-left:5px solid var(--type)"><div><strong>${esc(r.issue.client.name)} · ${esc(r.issue.type)}</strong><div class="muted">${esc(r.label)} · ${esc(r.issue.description||'Sin descripción')}</div></div><div style="text-align:right"><div class="when">${r.date?fmt(r.date):r.group}</div><button class="btn sm secondary" onclick="openClient('${r.issue.client.id}')">Abrir</button></div></div>`).join('')||'<div class="empty">No hay pendientes en esta categoría.</div>'}</div>`;
+  const groups=['Todos','Vencidos','Hoy','Próximos','Sin fecha','Esperando al cliente','Esperando autorización','Trabajo incompleto','Cobros pendientes'];
+  let rows=pendingRows();if(pendingFilter!=='Todos')rows=rows.filter(r=>r.group===pendingFilter);
+  const grouped=new Map();rows.forEach(r=>{const k=pendingKey(r.issue);if(!grouped.has(k))grouped.set(k,{issue:r.issue,details:[]});grouped.get(k).details.push(r)});
+  const visible=pendingOrdered().filter(i=>grouped.has(pendingKey(i))).filter(i=>pendingPriorityFilter==='Todos'||(pendingPriorityFilter==='Rápidos'?i.pendingQuick:pendingPriorityFilter==='Primero'?i.pendingFirst:(i.pendingPriority||'Normal')===pendingPriorityFilter));
+  const root=document.getElementById('pendientes');
+  root.innerHTML=`<div class="filters">${groups.map(g=>`<button class="filter ${g===pendingFilter?'active':''}" data-group="${esc(g)}">${g}</button>`).join('')}</div><div class="toolbar" style="margin:12px 0;display:flex;flex-wrap:wrap;gap:8px"><label>Mostrar <select id="pendingPriorityFilter">${['Todos','Urgente','Importante','Normal','Rápidos','Primero'].map(g=>`<option ${g===pendingPriorityFilter?'selected':''}>${g}</option>`).join('')}</select></label><label>Orden <select id="pendingOrder"><option value="manual" ${pendingOrder==='manual'?'selected':''}>Mi orden</option><option value="priority" ${pendingOrder==='priority'?'selected':''}>Por prioridad</option></select></label></div><p class="muted">Arrastra desde ↕ o usa las flechas. Las marcas y el siguiente paso se guardan automáticamente.</p><div class="list" id="pendingCards"></div>`;
+  root.querySelectorAll('[data-group]').forEach(b=>b.onclick=()=>{pendingFilter=b.dataset.group;renderPendientes()});
+  root.querySelector('#pendingPriorityFilter').onchange=e=>{pendingPriorityFilter=e.target.value;renderPendientes()};
+  root.querySelector('#pendingOrder').onchange=e=>{pendingOrder=e.target.value;renderPendientes()};
+  const container=root.querySelector('#pendingCards');
+  visible.forEach((i,index)=>{
+    const real=()=>state.clients.find(c=>c.id===i.client.id)?.issues.find(x=>x.id===i.id);
+    const update=(k,v)=>{const item=real();if(item){item[k]=v;save()}};
+    const card=document.createElement('div');card.className='card';card.style.cssText=typeStyle(i.type)+';border-left:5px solid var(--type)';
+    card.innerHTML=`<strong>${esc(i.client.name)} · ${esc(i.type)}</strong><div class="muted">${esc(i.description||'Sin descripción')}</div><div class="muted">${[...new Set(grouped.get(pendingKey(i)).details.map(r=>r.label+(r.date?' · '+fmt(r.date):'')))].map(esc).join(' / ')}</div><div class="pending-actions" style="display:flex;flex-wrap:wrap;gap:6px;margin:12px 0"></div><label style="display:block">Siguiente paso<input class="pending-note" style="width:100%;box-sizing:border-box;margin-top:6px" maxlength="500" placeholder="Ej. Llamarle hoy para acordar cita" value="${esc(i.pendingNote||'')}"></label><small class="pending-saved" aria-live="polite"></small>`;
+    const actions=card.querySelector('.pending-actions');
+    function button(text,fn,active=false){const b=document.createElement('button');b.type='button';b.className='btn sm '+(active?'':'secondary');b.textContent=text;b.onclick=fn;actions.append(b);return b}
+    [['Urgente','🔴'],['Importante','🟠'],['Normal','⚪']].forEach(([v,icon])=>{const active=(i.pendingPriority||'Normal')===v;button(icon+' '+v,()=>update('pendingPriority',v),active).setAttribute('aria-pressed',active)});
+    button('⚡ Rápido',()=>update('pendingQuick',!i.pendingQuick),!!i.pendingQuick).setAttribute('aria-pressed',!!i.pendingQuick);
+    button('📌 Primero',()=>{const item=real();if(!item)return;item.pendingFirst=!item.pendingFirst;if(item.pendingFirst)item.pendingRank=Math.min(0,...activeIssues().map(x=>x.pendingRank??0))-1;pendingOrder='manual';save()},!!i.pendingFirst).setAttribute('aria-pressed',!!i.pendingFirst);
+    const handle=button('↕ Arrastrar',()=>{});handle.draggable=true;handle.style.cursor='grab';handle.ondragstart=e=>{pendingDrag=pendingKey(i);e.dataTransfer.setData('text/plain',pendingDrag);e.dataTransfer.effectAllowed='move'};handle.ondragend=()=>{pendingDrag=null};
+    card.ondragover=e=>{if(pendingDrag){e.preventDefault();e.dataTransfer.dropEffect='move'}};card.ondrop=e=>{e.preventDefault();if(pendingDrag)pendingMove(pendingDrag,pendingKey(i));pendingDrag=null};
+    button('↑',()=>pendingMove(pendingKey(i),pendingKey(visible[index-1]))).disabled=index===0;
+    button('↓',()=>pendingMove(pendingKey(i),pendingKey(visible[index+1]))).disabled=index===visible.length-1;
+    button('Abrir',()=>openClient(i.client.id));
+    const input=card.querySelector('input');input.oninput=()=>{const item=real();if(!item)return;item.pendingNote=input.value;delete state._freshInstall;state._updatedAt=new Date().toISOString();try{localStorage.setItem(LS,JSON.stringify(state));window.SimounSync?.queuePush(state);card.querySelector('.pending-saved').textContent='Guardado en este dispositivo'}catch{card.querySelector('.pending-saved').textContent='No se pudo guardar. Copia tu nota antes de salir.'}};
+    container.append(card);
+  });
+  if(!visible.length)container.innerHTML='<div class="empty">No hay pendientes en esta categoría.</div>';
 }
 
 function renderMonitors(){document.getElementById('monitoreos').innerHTML=`<div class="notice">Módulo separado dentro de la misma aplicación. Esta versión permite guardar, editar y borrar clientes de monitoreo.</div><div class="section-title"><h2>Monitoreos</h2><button class="btn" onclick="addMonitor()">+ Cliente</button></div><div class="list">${state.monitors.map(m=>`<div class="card monitor-row"><div class="wide"><strong>${esc(m.name)}</strong><div class="muted">${esc(m.company||'')}</div></div><div><small class="muted">Mensualidad</small><br>${money(m.monthly||0)}</div><div><small class="muted">Cubierto hasta</small><br>${esc(m.coveredThrough||'Sin dato')}</div><div class="split-actions"><button class="btn sm secondary" onclick="editMonitor('${m.id}')">Editar</button><button class="btn sm danger" onclick="deleteMonitor('${m.id}')">Borrar</button></div></div>`).join('')||'<div class="empty">Aún no hay clientes de monitoreo.</div>'}</div>`}
