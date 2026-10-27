@@ -83,6 +83,7 @@
     add(lines,'Descripción del trabajo',issue.description,d);
     add(lines,'Notas',issue.notes,d);
     add(lines,'Dirección del servicio',issue.serviceAddress,d);
+    add(lines,'Herramientas, productos, equipo y acciones necesarias para realizar el servicio',issue.serviceToolsActions,d);
     add(lines,'Creado por',issue.createdBy,d);
     
 
