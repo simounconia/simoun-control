@@ -84,37 +84,33 @@
     add(lines,'Notas',issue.notes,d);
     add(lines,'Dirección del servicio',issue.serviceAddress,d);
     add(lines,'Creado por',issue.createdBy,d);
-    if(has(issue.createdAt))lines.push(`${d}Fecha de alta: ${dateText(issue.createdAt)}`);
+    
 
-    if(has(issue.createdDate))lines.push(`${d}Fecha de creación: ${dateText(issue.createdDate)}`);
-    if(has(issue.followupDate))lines.push(`${d}Fecha de seguimiento: ${dateText(issue.followupDate)}`);
-    if(has(issue.actionDate))lines.push(`${d}Fecha de acción: ${dateText(issue.actionDate)}`);
-    if(has(issue.appointmentDate))lines.push(`${d}Fecha de cita: ${dateText(issue.appointmentDate)}`);
+    const contactDate=issue.clientContactDate||issue.createdDate;
+    if(has(contactDate))lines.push(`${d}Fecha de contacto del cliente: ${dateText(contactDate)}`);
+    const followMode=issue.followupMode||(issue.followupDate?'Fecha':'Sin fecha');
+    if(followMode==='Fecha'&&has(issue.followupDate))lines.push(`${d}Fecha de seguimiento: ${dateText(issue.followupDate)}`);
+    else lines.push(`${d}Fecha de seguimiento: ${followMode}`);
+    const attentionDate=issue.attentionDate||issue.appointmentDate;
+    if(has(attentionDate))lines.push(`${d}Fecha de atención, seguimiento o cita: ${dateText(attentionDate)}`);
     add(lines,'Hora / ventana de cita',issue.appointmentWindow,d);
     add(lines,'Disponibilidad del cliente',issue.clientAvailability,d);
     add(lines,'Confirmación de cita',issue.appointmentConfirmation,d);
-    if(has(issue.proposedAppointmentDate))lines.push(`${d}Fecha propuesta: ${dateText(issue.proposedAppointmentDate)}`);
     add(lines,'Horario propuesto por el jefe',issue.proposedAppointmentWindow,d);
     add(lines,'Persona que recibirá',issue.appointmentReceiver,d);
     add(lines,'Nota de coordinación',issue.appointmentNote,d);
-    if(has(issue.plannedEndDate))lines.push(`${d}Fecha prevista de término: ${dateText(issue.plannedEndDate)}`);
-    if(has(issue.realEndDate))lines.push(`${d}Fecha real de término: ${dateText(issue.realEndDate)}`);
 
     if(issue.reported===true)lines.push(`${d}Ya fue reportado: Sí`);
-    if(has(issue.reportedDate))lines.push(`${d}Fecha en que se reportó: ${dateText(issue.reportedDate)}`);
     add(lines,'Motivo de trabajo incompleto',issue.incompleteReason,d);
     add(lines,'Qué falta',issue.missingWork,d);
     add(lines,'Próxima acción',issue.nextAction,d);
     add(lines,'Trabajo futuro / promesa',issue.futurePromise,d);
-    if(has(issue.futureApproxDate))lines.push(`${d}Fecha aproximada: ${dateText(issue.futureApproxDate)}`);
-    if(has(issue.futureContactDate))lines.push(`${d}Próximo contacto SIMOUN: ${dateText(issue.futureContactDate)}`);
     add(lines,'Requiere factura',issue.billingYes,d);
 
     if(has(issue.total))lines.push(`${d}Total a cobrar: ${moneyText(issue.total)}`);
     if(has(issue.paid))lines.push(`${d}Cantidad pagada: ${moneyText(issue.paid)}`);
     if(has(issue.balance))lines.push(`${d}Saldo pendiente: ${moneyText(issue.balance)}`);
     add(lines,'Estado del cobro',issue.payState,d);
-    if(has(issue.paymentDate))lines.push(`${d}Fecha de pago: ${dateText(issue.paymentDate)}`);
     add(lines,'Forma de pago',issue.paymentMethod,d);
     add(lines,'Destino del pago',issue.paymentDestination,d);
 
