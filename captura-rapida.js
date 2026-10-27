@@ -117,8 +117,8 @@
     const clients=Array.from(grouped.values()).sort((a,b)=>String(a.client.name||'').localeCompare(String(b.client.name||''),'es'));
     clients.forEach(group=>{
       group.issues.sort((a,b)=>{
-        const ad=String(a.createdDate||'');
-        const bd=String(b.createdDate||'');
+        const ad=String(a.clientContactDate||a.createdDate||'');
+        const bd=String(b.clientContactDate||b.createdDate||'');
         if(ad!==bd)return ad.localeCompare(bd);
         return String(a.type||'').localeCompare(String(b.type||''),'es');
       });
