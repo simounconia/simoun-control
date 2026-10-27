@@ -8,7 +8,7 @@ expedienteStyle.textContent=`
 #expedientes .client.exr-card{display:block}
 .exr-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
 .exr-card-head strong{font-size:17px}.exr-card-head .muted{margin-top:3px}
-.exr-contact{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px 0}
+.exr-contact{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;padding:12px 0}
 .exr-field{min-width:0;padding:9px;border-radius:10px;background:#f7f9fc}
 .exr-field small{display:block;color:var(--muted);font-size:11px;margin-bottom:4px}
 .exr-field strong,.exr-field a{font-size:13px;overflow-wrap:anywhere}
@@ -48,7 +48,7 @@ function exrService(c,i){
   <div class="exr-details">
    <div class="exr-field"><small>Fecha de solicitud</small><strong>${i.createdDate?fmt(i.createdDate):'Sin fecha'}</strong></div>
    <div class="exr-field"><small>Ventana de tiempo</small><strong>${exrText(i.appointmentWindow)}</strong></div>
-   <div class="exr-field"><small>Acción</small><strong>${exrText(i.actionNote||i.nextAction)}</strong></div>
+   <div class="exr-field"><small>Acción</small><strong>${exrText(i.actionNote||i.nextAction)}${i.actionFrequency==='Diariamente'?' · Diariamente':''}</strong></div>
    <div class="exr-field"><small>Fecha de acción</small><strong>${i.actionDate?fmt(i.actionDate):'Sin fecha'}</strong></div>
   </div>
   <div class="exr-copy"><strong>Solicitud / detalle:</strong> ${exrText(i.description)}</div>
@@ -71,10 +71,12 @@ function exrCardMarkup(c){
  const wa=String(c.whatsapp||'').replace(/[^\d]/g,'');
  return `<div class="exr-card-head"><div><strong>${esc(c.name||'Sin nombre')}</strong><div class="muted">${esc(c.company||'Sin empresa')}</div></div><div class="split-actions"><button class="btn sm" onclick="openClient('${c.id}')">Abrir / editar</button><button class="btn sm danger" onclick="deleteClient('${c.id}')">Borrar</button></div></div>
  <div class="exr-contact">
-  <div class="exr-field"><small>Contacto</small><strong>${exrText(c.contact)}</strong></div>
+  <div class="exr-field"><small>Relación</small><strong>${exrText(c.contact)}</strong></div>
   <div class="exr-field"><small>Empresa</small><strong>${exrText(c.company)}</strong></div>
   <div class="exr-field"><small>WhatsApp</small>${wa?'<a target="_blank" rel="noopener" href="https://wa.me/'+wa+'">'+esc(c.whatsapp)+'</a>':'<strong>—</strong>'}</div>
   <div class="exr-field"><small>Dirección</small><strong>${exrText(c.address)}</strong></div>
+  <div class="exr-field"><small>Horarios generales de visita del cliente</small><strong>${exrText(c.visitHours)}</strong></div>
+  <div class="exr-field"><small>Observaciones generales del cliente</small><strong>${exrText(c.notes)}</strong></div>
  </div>
  <div class="exr-section-title">Servicios activos · ${active.length}</div>
  ${active.length?active.map(i=>exrService(c,i)).join(''):'<div class="exr-empty">No hay servicios activos en este expediente.</div>'}
