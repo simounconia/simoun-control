@@ -47,7 +47,7 @@ function exrService(c,i){
   <div class="exr-details">
    <div class="exr-field"><small>Fecha de solicitud</small><strong>${i.createdDate?fmt(i.createdDate):'Sin fecha'}</strong></div>
    <div class="exr-field"><small>Ventana de tiempo</small><strong>${exrText(i.appointmentWindow)}</strong></div>
-   <div class="exr-field"><small>Acción</small><strong>${exrText(i.nextAction)}</strong></div>
+   <div class="exr-field"><small>Acción</small><strong>${exrText(i.actionNote||i.nextAction)}</strong></div>
    <div class="exr-field"><small>Fecha de acción</small><strong>${i.actionDate?fmt(i.actionDate):'Sin fecha'}</strong></div>
   </div>
   <div class="exr-copy"><strong>Solicitud / detalle:</strong> ${exrText(i.description)}</div>
