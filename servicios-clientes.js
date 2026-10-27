@@ -89,6 +89,8 @@ exrCardMarkup=function(c){const active=(c.issues||[]).filter(i=>i.active!==false
 
 const originalEditClient=editClient;
 editClient=function(c,isNew){originalEditClient(c,isNew);const title=document.getElementById('clientDlgTitle');if(title)title.textContent=isNew?'Nuevo cliente':(c.name||'Cliente');const root=document.getElementById('clientDlgBody');if(root){const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let node;while(node=walker.nextNode())node.nodeValue=node.nodeValue.replaceAll('Expediente','Cliente').replaceAll('expediente','cliente').replaceAll('Asuntos','Servicios').replaceAll('asuntos','servicios').replaceAll('asunto','servicio').replaceAll('Asunto','Servicio')}};
+const originalRenderAll=renderAll;
+renderAll=function(){migrateServices();originalRenderAll()};
 
 const legacyRenderClients=renderClients;
 renderClients=function(q=''){legacyRenderClients(q);const root=document.getElementById('expedientes');if(!root)return;root.innerHTML=root.innerHTML.replaceAll('Expedientes','Clientes').replaceAll('expediente','cliente').replaceAll('asuntos','servicios').replaceAll('Asuntos','Servicios').replaceAll('asunto','servicio').replaceAll('Asunto','Servicio');document.querySelectorAll('#expedientes .type-panel h3').forEach(x=>x.textContent='Revisar servicios por tipo');};
