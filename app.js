@@ -59,7 +59,7 @@ function showPage(id){
 function allIssues(){return state.clients.flatMap(c=>(c.issues||[]).map(i=>({...i,client:c})))}
 function issueDates(i){
   const a=[];
-  [['followupDate','Seguimiento'],['actionDate','Acción'],['appointmentDate','Cita'],['plannedEndDate','Término previsto'],['futureContactDate','Contacto futuro'],['reportedDate','Reporte'],['paymentDate','Pago']].forEach(([k,label])=>{if(i[k])a.push({date:i[k],label})});
+  [['followupDate','Seguimiento'],['actionDate','Acción'],['appointmentDate','Cita'],['plannedEndDate','Término previsto'],['futureContactDate','Contacto futuro'],['reportedDate','Reporte'],['paymentDate','Pago']].forEach(([k,label])=>{if(i[k]&&!(k==='actionDate'&&i.actionFrequency==='Diariamente'))a.push({date:i[k],label})});
   return a;
 }
 function activeIssues(){return allIssues().filter(x=>x.active!==false&&!['Terminado','Cancelado'].includes(x.state))}
@@ -115,25 +115,25 @@ function renderClients(q=''){
   document.getElementById('clientSearch').oninput=e=>renderClients(e.target.value);
 }
 
-function blankClient(){return{id:uid(),name:'',contact:'',company:'',address:'',phone:'',whatsapp:'',notes:'',billing:'',issues:[],docs:[]}}
+function blankClient(){return{id:uid(),name:'',contact:'',company:'',address:'',phone:'',whatsapp:'',visitHours:'',notes:'',issues:[],docs:[]}}
 function newClient(){editClient(blankClient(),true)}
 function openClient(id){const c=state.clients.find(x=>x.id===id);if(c)editClient(c,false)}
 function editClient(c,isNew){
   document.getElementById('clientDlgTitle').textContent=isNew?'Nuevo expediente':(c.name||'Expediente');
   document.getElementById('clientDlgBody').innerHTML=`
     <form id="clientForm">
-      <div class="row"><div class="field"><label>Cliente</label><input name="name" value="${esc(c.name)}" required></div><div class="field"><label>Contacto o persona relacionada</label><input name="contact" value="${esc(c.contact)}"></div></div>
+      <div class="row"><div class="field"><label>Cliente</label><input name="name" value="${esc(c.name)}" required></div><div class="field"><label>Relación</label><input name="contact" value="${esc(c.contact)}"></div></div>
       <div class="row"><div class="field"><label>Empresa</label><input name="company" value="${esc(c.company)}"></div><div class="field"><label>Teléfono</label><input name="phone" value="${esc(c.phone)}"></div></div>
       <div class="field"><label>WhatsApp</label><input name="whatsapp" value="${esc(c.whatsapp)}"></div>
       <div class="field"><label>Dirección</label><textarea name="address">${esc(c.address)}</textarea></div>
-      <div class="field"><label>Observaciones generales</label><textarea name="notes">${esc(c.notes)}</textarea></div>
-      <div class="field"><label>Datos de facturación del cliente</label><textarea name="billing" placeholder="RFC, razón social, régimen, uso de CFDI, etc.">${esc(c.billing)}</textarea></div>
+      <div class="field"><label>Horarios generales de visita del cliente</label><input name="visitHours" value="${esc(c.visitHours||'')}" placeholder="Ej. Lunes a viernes de 10:00 a 14:00"></div>
+      <div class="field"><label>Observaciones generales del cliente</label><textarea name="notes">${esc(c.notes)}</textarea></div>
       <div class="toolbar"><button class="btn" type="submit">💾 Guardar expediente</button>${!isNew?`<button type="button" class="btn secondary" onclick="newIssue('${c.id}')">+ Nuevo asunto</button><button type="button" class="btn danger" onclick="deleteClient('${c.id}',true)">🗑️ Borrar expediente</button>`:''}</div>
     </form>
     ${!isNew?`<div class="section-title"><h3>Asuntos</h3><span class="muted">${(c.issues||[]).length}</span></div><div class="list">${(c.issues||[]).map(i=>issueCard(c,i)).join('')||'<div class="empty">Todavía no hay asuntos.</div>'}</div>
     <div class="section-title"><h3>Documentos</h3></div><div class="notice">Los archivos se guardan localmente en este dispositivo.</div><div class="toolbar" style="margin-top:8px"><input type="file" id="docFile"><button class="btn secondary" type="button" onclick="addDoc('${c.id}')">Adjuntar</button></div><div id="docsList">${(c.docs||[]).map(d=>`<div class="doc"><span>📎 ${esc(d.name)} <small class="muted">${Math.round(d.size/1024)} KB</small></span><div class="split-actions"><button class="btn sm light" onclick="downloadDoc('${c.id}','${d.id}')">Abrir</button><button class="btn sm danger" onclick="deleteDoc('${c.id}','${d.id}')">Borrar</button></div></div>`).join('')}</div>`:''}`;
   document.getElementById('clientForm').onsubmit=e=>{
-    e.preventDefault();const fd=new FormData(e.target);['name','contact','company','phone','whatsapp','address','notes','billing'].forEach(k=>c[k]=fd.get(k));
+    e.preventDefault();const fd=new FormData(e.target);['name','contact','company','phone','whatsapp','address','visitHours','notes'].forEach(k=>c[k]=fd.get(k));
     if(isNew)state.clients.unshift(c);save();clientDlg.close();openClient(c.id);
   };
   clientDlg.showModal();
@@ -148,7 +148,7 @@ function issueCard(c,i){
   const dates=issueDates(i);const m=TYPE_META[i.type]||{icon:'•'};
   return `<div class="card issue ${i.state==='Terminado'?'done':''} ${i.active===false?'disabled':''}" style="${typeStyle(i.type)}"><div class="issue-head"><div><div class="type-label">${m.icon} ${esc(i.type)}</div><div class="badges"><span class="badge">${esc(i.state)}</span>${i.active===false?'<span class="badge red">Desactivado</span>':''}</div></div><div class="split-actions"><button class="btn sm secondary" onclick="editIssue('${c.id}','${i.id}')">Editar</button><button class="btn sm danger" onclick="deleteIssue('${c.id}','${i.id}')">Borrar</button></div></div><div class="muted" style="margin-top:8px">${esc(i.description||'Sin descripción')}</div><div class="issue-grid">${dates.slice(0,5).map(d=>`<div class="kv"><b>${d.label}</b><br>${fmt(d.date)}</div>`).join('')}${i.type==='Cobro'?`<div class="kv"><b>Saldo</b><br>${money(i.balance||0)}</div>`:''}</div></div>`;
 }
-function blankIssue(){return{id:uid(),type:'Seguimiento',state:'Pendiente',description:'',notes:'',createdDate:today(),followupDate:'',actionDate:'',appointmentDate:'',appointmentWindow:'',plannedEndDate:'',realEndDate:'',reported:false,reportedDate:'',incompleteReason:'',missingWork:'',nextAction:'',futurePromise:'',futureApproxDate:'',futureContactDate:'',billingYes:'',productsServices:'',servicePrice:0,billingStatus:'',chargeNotes:'',actionNote:'',invoiced:'No',remisionada:'No',adminNote:'',total:0,paid:0,balance:0,payState:'Pendiente',paymentDate:'',paymentMethod:'',paymentDestination:'',active:true,history:[]}}
+function blankIssue(){return{id:uid(),type:'Seguimiento',state:'Pendiente',description:'',notes:'',createdDate:today(),followupDate:'',actionDate:'',actionFrequency:'Una sola vez',appointmentDate:'',appointmentWindow:'',plannedEndDate:'',realEndDate:'',reported:false,reportedDate:'',incompleteReason:'',missingWork:'',nextAction:'',futurePromise:'',futureApproxDate:'',futureContactDate:'',billingYes:'',productsServices:'',servicePrice:0,billingStatus:'',chargeNotes:'',actionNote:'',invoiced:'No',remisionada:'No',adminNote:'',total:0,paid:0,balance:0,payState:'Pendiente',paymentDate:'',paymentMethod:'',paymentDestination:'',active:true,history:[]}}
 function newIssue(cid){editIssue(cid,null)}
 function editIssue(cid,iid){
   const c=state.clients.find(x=>x.id===cid);if(!c)return;
@@ -159,7 +159,7 @@ function editIssue(cid,iid){
     <div class="switch-line"><input type="checkbox" id="activeIssue" name="active" ${i.active!==false?'checked':''}><label for="activeIssue"><strong>Asunto activo</strong><div class="muted">Desactívalo si quieres conservarlo sin que aparezca como pendiente activo.</div></label></div>
     <div class="field"><label>Descripción detallada</label><textarea name="description">${esc(i.description)}</textarea></div><div class="field"><label>Notas</label><textarea name="notes">${esc(i.notes)}</textarea></div><div class="field"><label>Productos y servicios</label><textarea name="productsServices" placeholder="Equipo, materiales y servicio">${esc(i.productsServices||'')}</textarea></div><div class="row"><div class="field"><label>Total del precio del servicio</label><input type="number" step="0.01" min="0" name="servicePrice" value="${i.servicePrice||0}"></div><div class="field"><label>Cobranza</label><select name="billingStatus"><option value="" ${!i.billingStatus?'selected':''}>Sin registrar</option><option value="Cuenta por cobrar" ${i.billingStatus==='Cuenta por cobrar'?'selected':''}>Cuenta por cobrar</option><option value="Pagada parcialmente" ${i.billingStatus==='Pagada parcialmente'?'selected':''}>Pagada parcialmente</option><option value="Pagada en su totalidad" ${i.billingStatus==='Pagada en su totalidad'?'selected':''}>Pagada en su totalidad</option></select></div></div><div class="field"><label>Notas sobre el cobro</label><textarea name="chargeNotes" placeholder="Forma de pago, acuerdos o aclaraciones">${esc(i.chargeNotes||'')}</textarea></div><div class="row"><div class="field"><label>Administrativo · Facturada</label><select name="invoiced"><option value="No" ${i.invoiced!=='Sí'?'selected':''}>No</option><option value="Sí" ${i.invoiced==='Sí'?'selected':''}>Sí</option></select></div><div class="field"><label>Administrativo · Remisionada</label><select name="remisionada"><option value="No" ${i.remisionada!=='Sí'?'selected':''}>No</option><option value="Sí" ${i.remisionada==='Sí'?'selected':''}>Sí</option></select></div></div><div class="field"><label>Nota interna administrativa</label><textarea name="adminNote" placeholder="Nota interna">${esc(i.adminNote||'')}</textarea></div>
     <div class="row"><div class="field"><label>Fecha de creación</label><input type="date" name="createdDate" value="${i.createdDate||today()}"></div><div class="field"><label>Fecha de seguimiento</label><input type="date" name="followupDate" value="${i.followupDate||''}"></div></div><div class="field"><label>Acción</label><input name="actionNote" value="${esc(i.actionNote||i.nextAction||'')}" placeholder="Llamar, cotizar, confirmar, dar seguimiento…"></div>
-    <div class="row"><div class="field"><label>Fecha de acción</label><input type="date" name="actionDate" value="${i.actionDate||''}"></div><div class="field"><label>Fecha de cita</label><input type="date" name="appointmentDate" value="${i.appointmentDate||''}"></div></div>
+    <div class="row"><div class="field"><label>Fecha de acción</label><input type="date" name="actionDate" value="${i.actionDate||''}"></div><div class="field"><label>Frecuencia de acción</label><select name="actionFrequency"><option value="Una sola vez" ${i.actionFrequency!=='Diariamente'?'selected':''}>Una sola vez</option><option value="Diariamente" ${i.actionFrequency==='Diariamente'?'selected':''}>Diariamente · no mostrar en calendario</option></select></div></div><div class="field"><label>Fecha de cita</label><input type="date" name="appointmentDate" value="${i.appointmentDate||''}"></div>
     <div class="field"><label>Hora / ventana de cita</label><input name="appointmentWindow" value="${esc(i.appointmentWindow)}" placeholder="Ej. 10:00–13:00"></div>
     <div class="row"><div class="field"><label>Fecha prevista de término</label><input type="date" name="plannedEndDate" value="${i.plannedEndDate||''}"></div><div class="field"><label>Fecha real de término</label><input type="date" name="realEndDate" value="${i.realEndDate||''}"></div></div>
     <div id="conditional"></div>
