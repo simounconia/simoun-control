@@ -89,10 +89,8 @@
     const contactDate=issue.clientContactDate||issue.createdDate;
     if(has(contactDate))lines.push(`${d}Fecha de contacto del cliente: ${dateText(contactDate)}`);
     const followMode=issue.followupMode||(issue.followupDate?'Fecha':'Sin fecha');
-    if(followMode==='Fecha'&&has(issue.followupDate))lines.push(`${d}Fecha de seguimiento: ${dateText(issue.followupDate)}`);
-    else lines.push(`${d}Fecha de seguimiento: ${followMode}`);
-    const attentionDate=issue.attentionDate||issue.appointmentDate;
-    if(has(attentionDate))lines.push(`${d}Fecha de atención, seguimiento o cita: ${dateText(attentionDate)}`);
+    const serviceDate=followMode==='Fecha'&&has(issue.followupDate)?dateText(issue.followupDate):followMode;
+    lines.push(`${d}Fecha de seguimiento, atención o cita: ${serviceDate}`);
     add(lines,'Hora / ventana de cita',issue.appointmentWindow,d);
     add(lines,'Disponibilidad del cliente',issue.clientAvailability,d);
     add(lines,'Confirmación de cita',issue.appointmentConfirmation,d);
