@@ -1,4 +1,4 @@
-const PAGES=[['inicio','Inicio'],['expedientes','Expedientes'],['calendario','Calendario'],['pendientes','Pendientes'],['monitoreos','Monitoreos']];
+const PAGES=[['inicio','Inicio'],['expedientes','Expedientes'],['calendario','Calendario'],['pendientes','Pendientes'],['monitoreos','Monitoreos'],['jornada','Jornada']];
 const ISSUE_TYPES=['Pregunta','Seguimiento','Reparación','Instalación','Mantenimiento','Cotización','Facturación','Cobro','Trabajo incompleto','Trabajo futuro / promesa'];
 const TYPE_META={
   'Pregunta':{icon:'❓',color:'#7c3aed',bg:'#f3e8ff',ink:'#6d28d9'},
@@ -54,6 +54,7 @@ function showPage(id){
   if(id==='expedientes')renderClients(document.getElementById('clientSearch')?.value||'');
   if(id==='calendario')renderCalendar();
   if(id==='pendientes')renderPendientes();
+  if(id==='jornada'&&typeof renderJornada==='function')renderJornada();
 }
 function allIssues(){return state.clients.flatMap(c=>(c.issues||[]).map(i=>({...i,client:c})))}
 function issueDates(i){
@@ -281,7 +282,7 @@ async function installPWA(){
   alert('Si no aparece el instalador automático, abre el menú del navegador y elige “Instalar app” o “Agregar a pantalla principal”.')
 }
 
-function renderAll(){dashboard();renderClients();renderCalendar();renderPendientes();renderMonitors()}
+function renderAll(){dashboard();renderClients();renderCalendar();renderPendientes();renderMonitors();if(typeof renderJornada==='function')renderJornada()}
 nav();renderAll();document.getElementById('fab').onclick=newClient;showPage('inicio');
 window.SimounSync?.init({getState:()=>state,applyState:(remote)=>{state=remote;renderAll()}});
 if('serviceWorker' in navigator && location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn))}
