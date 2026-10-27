@@ -30,7 +30,7 @@ function init(){
       const bossWindow=i.proposedAppointmentWindow||'';
       coordination.innerHTML='<h2>Coordinar cita</h2><p><strong>'+ehtml(c.name)+'</strong> · '+ehtml(i.serviceAddress||c.address||'')+'</p><p class="muted">'+ehtml(i.description||'Trabajo por confirmar')+'</p><form id="coordForm">'+
       '<label style="display:flex;flex-direction:column;gap:8px;margin:0 0 16px;font-size:14px;font-weight:700">Etapa<select name="stage"><option value="Pendiente de coordinar">Consultar con el jefe</option><option value="Disponibilidad autorizada; falta confirmar cliente">Jefe dio disponibilidad; falta confirmar cliente</option><option value="Confirmada">Cliente confirmó la cita</option></select></label>'+
-      '<label>Fecha de atención, seguimiento o cita<input type="date" name="date" value="'+ehtml(i.proposedAppointmentDate||i.appointmentDate||'')+'"></label>'+
+      '<label>Fecha de atención, seguimiento o cita<input type="date" name="date" value="'+ehtml(i.proposedAppointmentDate||i.followupDate||i.attentionDate||i.appointmentDate||'')+'"></label>'+
       '<div class="notice" style="margin-bottom:14px"><strong>Disponibilidad indicada por el cliente:</strong><div>'+ehtml(clientWindow||'No registrada')+'</div></div>'+ 
       '<label>Horario propuesto por el jefe<input name="time" placeholder="Ej. jueves de 13:00 a 15:00" value="'+ehtml(bossWindow)+'"></label>'+
       '<label>Persona que recibirá (opcional)<input name="receiver" value="'+ehtml(i.appointmentReceiver||'')+'"></label>'+
@@ -46,8 +46,8 @@ function init(){
         if(stage==='Confirmada'&&!confirm('¿Tu jefe autorizó la disponibilidad y el cliente confirmó esta cita?'))return;
         const previous=i.appointmentConfirmation;
         i.appointmentConfirmation=stage;
-        i.attentionDate=date;
-        delete i.proposedAppointmentDate;
+        i.followupDate=date;i.followupMode=date?'Fecha':'Sin fecha';
+        delete i.attentionDate;delete i.appointmentDate;delete i.proposedAppointmentDate;
         i.proposedAppointmentWindow=time;
         i.appointmentReceiver=String(fd.get('receiver')||'');
         i.appointmentNote=String(fd.get('note')||'');
