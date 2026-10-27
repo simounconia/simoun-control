@@ -32,10 +32,11 @@ document.head.appendChild(expedienteStyle);
 function exrText(v,empty='—'){return v?esc(v):empty}
 function exrMoney(v){return Number(v||0)>0?money(v):'Sin capturar'}
 function exrCollection(i){
-  const total=Number(i.total||0),paid=Number(i.paid||0);
+  if(i.billingStatus)return i.billingStatus;
+  const total=Number(i.servicePrice||i.total||0),paid=Number(i.paid||0);
   if(i.payState==='Pagado'||(total>0&&paid>=total))return 'Pagada en su totalidad';
   if(i.payState==='Pago parcial'||paid>0)return 'Pagada parcialmente';
-  if(i.type==='Cobro'||total>0||i.payState)return 'Cuenta por cobrar';
+  if(i.type==='Cobro'||total>0)return 'Cuenta por cobrar';
   return 'Sin cobro registrado';
 }
 function exrService(c,i){
@@ -53,7 +54,7 @@ function exrService(c,i){
   <div class="exr-copy"><strong>Solicitud / detalle:</strong> ${exrText(i.description)}</div>
   <div class="exr-finance">
    <div class="exr-field"><small>Productos y servicios</small><strong>${exrText(i.productsServices||i.description)}</strong></div>
-   <div class="exr-field"><small>Total del servicio</small><strong>${exrMoney(i.total)}</strong></div>
+   <div class="exr-field"><small>Total del servicio</small><strong>${exrMoney(i.servicePrice||i.total)}</strong></div>
    <div class="exr-field"><small>Cobranza</small><strong>${exrCollection(i)}</strong></div>
   </div>
   <div class="exr-copy"><strong>Notas sobre el cobro:</strong> ${exrText(i.chargeNotes||i.paymentNote)}</div>
