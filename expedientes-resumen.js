@@ -41,16 +41,20 @@ function exrCollection(i){
 }
 function exrService(c,i){
  const meta=TYPE_META[i.type]||{icon:'•'};
+ const followMode=i.followupMode||(i.followupDate?'Fecha':'Sin fecha');
+ const followText=followMode==='Fecha'?(i.followupDate?fmt(i.followupDate):'Sin fecha'):followMode;
+ const attentionDate=i.attentionDate||i.appointmentDate;
  const status=i.invoiced==='Sí'||i.invoiced===true?'Facturada':'Sin facturar';
  const rem=i.remisionada==='Sí'||i.remisionada===true?'Remisionada':'Sin remisión';
  return `<article class="exr-service" style="${typeStyle(i.type)}">
   <div class="exr-service-head"><div class="exr-service-title"><span class="type-label">${meta.icon} ${esc(i.type||'Servicio')}</span><span class="badge">${esc(i.state||'Pendiente')}</span></div><button class="btn sm secondary" onclick="editIssue('${c.id}','${i.id}')">Editar servicio</button></div>
   <div class="exr-details">
-   <div class="exr-field"><small>Fecha de solicitud</small><strong>${i.createdDate?fmt(i.createdDate):'Sin fecha'}</strong></div>
+   <div class="exr-field"><small>Fecha de contacto del cliente</small><strong>${(i.clientContactDate||i.createdDate)?fmt(i.clientContactDate||i.createdDate):'Sin fecha'}</strong></div>
+   <div class="exr-field"><small>Fecha de seguimiento</small><strong>${esc(followText)}</strong></div>
+   <div class="exr-field"><small>Fecha de atención, seguimiento o cita</small><strong>${attentionDate?fmt(attentionDate):'Sin fecha'}</strong></div>
    <div class="exr-field"><small>Ventana de tiempo</small><strong>${exrText(i.appointmentWindow)}</strong></div>
-   <div class="exr-field"><small>Acción</small><strong>${exrText(i.actionNote||i.nextAction)}${i.actionFrequency==='Diariamente'?' · Diariamente':''}</strong></div>
-   <div class="exr-field"><small>Fecha de acción</small><strong>${i.actionDate?fmt(i.actionDate):'Sin fecha'}</strong></div>
   </div>
+  <div class="exr-copy"><strong>Acción:</strong> ${exrText(i.actionNote||i.nextAction)}</div>
   <div class="exr-copy"><strong>Solicitud / detalle:</strong> ${exrText(i.description)}</div>
   <div class="exr-finance">
    <div class="exr-field"><small>Productos y servicios</small><strong>${exrText(i.productsServices||i.description)}</strong></div>
