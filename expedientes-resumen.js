@@ -43,31 +43,48 @@ function exrService(c,i){
  const meta=TYPE_META[i.type]||{icon:'•'};
  const followMode=i.followupMode||(i.followupDate?'Fecha':'Sin fecha');
  const followText=followMode==='Fecha'?(i.followupDate?fmt(i.followupDate):'Sin fecha'):followMode;
- const attentionDate=i.attentionDate||i.appointmentDate;
- const status=i.invoiced==='Sí'||i.invoiced===true?'Facturada':'Sin facturar';
- const rem=i.remisionada==='Sí'||i.remisionada===true?'Remisionada':'Sin remisión';
+ const statuses=typeof serviceStatuses==='function'?serviceStatuses(i):(Array.isArray(i.workStatuses)?i.workStatuses:[]);
+ const charge=typeof serviceChargeStatus==='function'?serviceChargeStatus(i):exrCollection(i);
+ const total=Number(i.servicePrice||i.total||0);
+ const balance=typeof serviceBalance==='function'?serviceBalance(i):Math.max(0,total-Number(i.paid||0));
+ const tags=[...(Array.isArray(i.serviceWaitStates)?i.serviceWaitStates:[]),...(i.pendingQuick&&!i.serviceWaitStates?.includes('Rápido')?['Rápido']:[])];
+ if(i.pendingPriority)tags.push(i.pendingPriority);
+ const docType=i.documentType||(i.invoiced==='Sí'?'Factura':i.remisionada==='Sí'?'Remisión':i.adminNote?'Nota':'');
+ const method=typeof paymentMethodText==='function'?paymentMethodText(i):(i.paymentMethod||'');
+ const cfdiMethod=i.cfdiPaymentMethod?({PUE:'PUE · Pago en una sola exhibición',PPD:'PPD · Pago en parcialidades o diferido'}[i.cfdiPaymentMethod]||i.cfdiPaymentMethod):'';
+ const cfdiUse=Array.isArray(CFDI_USES)?CFDI_USES.find(([code])=>code===i.useCFDI):null;
+ const cfdiUseText=cfdiUse?cfdiUse[0]+' · '+cfdiUse[1]:(i.useCFDI||'');
+ const docs=Array.isArray(i.serviceDocs)?i.serviceDocs:[];
  return `<article class="exr-service" style="${typeStyle(i.type)}">
-  <div class="exr-service-head"><div class="exr-service-title"><span class="type-label">${meta.icon} ${esc(i.type||'Servicio')}</span><span class="badge">${esc(i.state||'Pendiente')}</span></div><button class="btn sm secondary" onclick="editIssue('${c.id}','${i.id}')">Editar servicio</button></div>
+  <div class="exr-service-head"><div class="exr-service-title"><span class="type-label">${meta.icon} ${esc(i.type||'Servicio')}</span>${statuses.length?statuses.map(s=>`<span class="badge ${s==='Trabajo terminado'?'green':'orange'}">${esc(s)}</span>`).join(''):'<span class="badge">Sin estatus de trabajo</span>'}${tags.map(t=>`<span class="badge blue">${esc(t)}</span>`).join('')}${i.active===false?'<span class="badge red">Servicio inactivo</span>':''}</div><button class="btn sm secondary" onclick="editIssue('${c.id}','${i.id}')">Editar servicio</button></div>
   <div class="exr-details">
-   <div class="exr-field"><small>Fecha de contacto del cliente</small><strong>${(i.clientContactDate||i.createdDate)?fmt(i.clientContactDate||i.createdDate):'Sin fecha'}</strong></div>
-   <div class="exr-field"><small>Fecha de seguimiento</small><strong>${esc(followText)}</strong></div>
-   <div class="exr-field"><small>Fecha de atención, seguimiento o cita</small><strong>${attentionDate?fmt(attentionDate):'Sin fecha'}</strong></div>
-   <div class="exr-field"><small>Ventana de tiempo</small><strong>${exrText(i.appointmentWindow)}</strong></div>
+   <div class="exr-field"><small>Fecha de contacto del cliente *</small><strong>${(i.clientContactDate||i.createdDate)?fmt(i.clientContactDate||i.createdDate):'Sin fecha'}</strong></div>
+   <div class="exr-field"><small>Fecha de seguimiento o atención *</small><strong>${esc(followText)}</strong></div>
+   <div class="exr-field"><small>Fecha de cita confirmada *</small><strong>${i.confirmedAppointmentDate?fmt(i.confirmedAppointmentDate):'Sin cita confirmada'}</strong></div>
+   <div class="exr-field"><small>Ventana de tiempo para cita confirmada *</small><strong>${exrText(i.appointmentWindow)}</strong></div>
   </div>
-  <div class="exr-copy"><strong>Acción:</strong> ${exrText(i.actionNote||i.nextAction)}</div>
-  <div class="exr-copy"><strong>Solicitud / detalle:</strong> ${exrText(i.description)}</div>
+  <div class="exr-copy"><strong>Solicitud / detalle:</strong><br>${exrText(i.description)}</div>
+  <div class="exr-copy"><strong>Observaciones *</strong><br>${exrText(i.observations||i.actionNote||i.nextAction)}</div>
+  <div class="exr-copy"><strong>Nota de reporte:</strong><br>${exrText(i.reportNote||i.notes)}</div>
   <div class="exr-finance">
    <div class="exr-field"><small>Productos y servicios</small><strong>${exrText(i.productsServices||i.description)}</strong></div>
-   <div class="exr-field"><small>Total del servicio</small><strong>${exrMoney(i.servicePrice||i.total)}</strong></div>
-   <div class="exr-field"><small>Cobranza</small><strong>${exrCollection(i)}</strong></div>
+   <div class="exr-field"><small>Herramientas, productos, equipo y acciones necesarias para realizar el servicio</small><strong>${exrText(i.serviceToolsActions)}</strong></div>
+   <div class="exr-field"><small>Cobranza</small><strong>${esc(charge)}</strong></div>
+   <div class="exr-field"><small>Total del servicio</small><strong>${money(total)}</strong></div>
+   <div class="exr-field"><small>Saldo por servicio</small><strong>${money(balance)}</strong></div>
+   ${method?'<div class="exr-field"><small>Forma de pago</small><strong>'+esc(method)+'</strong></div>':''}
+   ${i.paymentReceivedBy?'<div class="exr-field"><small>Quién recibió el pago</small><strong>'+esc(i.paymentReceivedBy)+'</strong></div>':''}
+   ${docs.length?'<div class="exr-field"><small>Archivos del servicio</small><strong>'+docs.map(d=>esc(d.name)).join('<br>')+'</strong></div>':''}
   </div>
-  <div class="exr-copy"><strong>Notas sobre el cobro:</strong> ${exrText(i.chargeNotes||i.paymentNote)}</div>
   <div class="exr-statuses"><strong>Administrativo:</strong>
-   <label><input type="checkbox" ${status==='Facturada'?'checked':''} onchange="exrSetIssue('${c.id}','${i.id}','invoiced',this.checked)"> Facturada</label>
-   <label><input type="checkbox" ${i.remisionada==='Sí'||i.remisionada===true?'checked':''} onchange="exrSetIssue('${c.id}','${i.id}','remisionada',this.checked)"> Remisionada</label>
-   <span class="badge ${status==='Facturada'?'green':''}">${status}</span><span class="badge ${rem==='Remisionada'?'blue':''}">${rem}</span>
+   <label><input type="checkbox" ${docType==='Factura'?'checked':''} onchange="exrSetIssue('${c.id}','${i.id}','invoiced',this.checked)"> Facturada</label>
+   <label><input type="checkbox" ${docType==='Remisión'?'checked':''} onchange="exrSetIssue('${c.id}','${i.id}','remisionada',this.checked)"> Remisionada</label>
+   <span class="badge">${esc(docType||'Sin comprobante')}${i.documentFolio?' · Folio '+esc(i.documentFolio):''}</span>
+   ${cfdiMethod?'<span>Método CFDI: '+esc(cfdiMethod)+'</span>':''}
+   ${cfdiUseText?'<span>Uso CFDI: '+esc(cfdiUseText)+'</span>':''}
+   ${method?'<span>Forma de pago: '+esc(method)+'</span>':''}
   </div>
-  <div class="exr-adminnote"><label class="field" style="flex:1"><span>Nota interna administrativa</span><textarea id="exr-admin-${i.id}" placeholder="Nota breve">${esc(i.adminNote||'')}</textarea></label><button class="btn sm secondary" onclick="exrSaveAdminNote('${c.id}','${i.id}')">✓ Guardar nota</button></div>
+  ${i.adminNote?'<div class="exr-adminnote"><div class="exr-field" style="flex:1"><small>Nota interna</small><strong>'+esc(i.adminNote)+'</strong></div></div>':''}
  </article>`
 }
 function exrCardMarkup(c){
