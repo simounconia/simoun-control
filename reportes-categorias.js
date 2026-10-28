@@ -68,7 +68,7 @@
   function allCss(){
     let css='';
     for(const sheet of Array.from(document.styleSheets||[])){
-      try{css+=Array.from(sheet.cssRules||[]).map(rule=>rule.cssText).join('\n')+'\\n'}catch{}
+      try{css+=Array.from(sheet.cssRules||[]).map(rule=>rule.cssText).join('\n')+'\n'}catch{}
     }
     return css+'\n'+reportExtraCss();
   }
