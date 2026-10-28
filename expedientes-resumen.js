@@ -84,7 +84,7 @@ function exrService(c,i){
    ${cfdiUseText?'<span>Uso CFDI: '+esc(cfdiUseText)+'</span>':''}
    ${method?'<span>Forma de pago: '+esc(method)+'</span>':''}
   </div>
-  ${i.adminNote?'<div class="exr-adminnote"><div class="exr-field" style="flex:1"><small>Nota interna</small><strong>'+esc(i.adminNote)+'</strong></div></div>':''}
+  ${i.adminNote?'<div class="exr-adminnote"><label class="field" style="flex:1"><span>Nota interna</span><textarea id="exr-admin-'+i.id+'" placeholder="Nota breve">'+esc(i.adminNote)+'</textarea></label><button class="btn sm secondary" onclick="exrSaveAdminNote(\''+c.id+'\',\''+i.id+'\')">✓ Guardar nota</button></div>':''}
  </article>`
 }
 function exrCardMarkup(c){
