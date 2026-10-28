@@ -17,8 +17,8 @@
   function printableCard(client){
     const holder=document.createElement('div');
     holder.innerHTML=typeof exrCardMarkup==='function'
-      ? exrCardMarkup(client)
-      : '<div class="card"><strong>'+escReport(client.name||'Sin nombre')+'</strong></div>';
+      ? '<div class="card client exr-card">'+exrCardMarkup(client)+'</div>'
+      : '<div class="card report-client-card"><strong>'+escReport(client.name||'Sin nombre')+'</strong></div>';
     const card=holder.firstElementChild;
     if(!card)return '';
     card.classList.add('report-client-card');
