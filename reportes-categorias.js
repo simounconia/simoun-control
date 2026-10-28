@@ -1,159 +1,122 @@
-// SIMOUN: reportes por categoría para compartir con el jefe.
-// Aditivo: no cambia ni migra los expedientes guardados.
+// SIMOUN: reporte imprimible por cliente, con la ficha visual completa.
 (function(){
   'use strict';
   if(window.__simounCategoryReports)return;
   window.__simounCategoryReports=true;
 
-  function reportTypes(){
-    const base=Array.isArray(ISSUE_TYPES)?ISSUE_TYPES.slice():[];
-    return ['Todos',...base];
+  const escReport=s=>String(s??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));
+  function reportTypes(){return ['Todos',...(Array.isArray(ISSUE_TYPES)?ISSUE_TYPES:[])];}
+  function currentType(){try{return reportTypes().includes(issueTypeFilter)?issueTypeFilter:'Todos'}catch{return 'Todos'}}
+  function reportClients(type){
+    return (Array.isArray(state?.clients)?state.clients:[])
+      .filter(c=>type==='Todos'||(c.issues||[]).some(i=>i.type===type))
+      .slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'es'));
   }
+  function reportDate(){return new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'})}
 
-  function currentType(){
-    try{return reportTypes().includes(issueTypeFilter)?issueTypeFilter:'Todos'}catch{return 'Todos'}
-  }
-
-  function clean(v,fallback=''){
-    const text=String(v??'').trim();
-    return text||fallback;
-  }
-  function has(v){
-    if(v===null||v===undefined)return false;
-    if(typeof v==='string')return v.trim()!=='';
-    if(typeof v==='number')return Number.isFinite(v)&&v!==0;
-    if(typeof v==='boolean')return v===true;
-    if(Array.isArray(v))return v.length>0;
-    if(typeof v==='object')return Object.keys(v).length>0;
-    return true;
-  }
-  function add(lines,label,value,prefix=''){
-    if(!has(value))return;
-    lines.push(`${prefix}${label}: ${clean(value)}`);
-  }
-  function dateText(v){
-    if(!has(v))return '';
-    const s=String(v);
-    if(/^\d{4}-\d{2}-\d{2}$/.test(s))return typeof fmt==='function'?fmt(s):s;
-    const d=new Date(s);
-    return Number.isNaN(d.getTime())?s:d.toLocaleString('es-MX');
-  }
-  function moneyText(v){return typeof money==='function'?money(Number(v||0)):String(v||0)}
-  function dateLabel(){return new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'})}
-
-  function matchingIssues(type){
-    let rows=[];
-    if(typeof activeIssues==='function')rows=activeIssues().slice();
-    else if(typeof allIssues==='function')rows=allIssues().filter(i=>i.active!==false&&!['Terminado','Cancelado'].includes(i.state));
-    if(type&&type!=='Todos')rows=rows.filter(i=>i.type===type);
-    rows.sort((a,b)=>{
-      const nc=String(a.client?.name||'').localeCompare(String(b.client?.name||''),'es');
-      if(nc)return nc;
-      const ad=String(a.createdDate||''),bd=String(b.createdDate||'');
-      if(ad!==bd)return ad.localeCompare(bd);
-      return String(a.type||'').localeCompare(String(b.type||''),'es');
+  function printableCard(client){
+    const holder=document.createElement('div');
+    holder.innerHTML=typeof exrCardMarkup==='function'
+      ? exrCardMarkup(client)
+      : '<div class="card"><strong>'+escReport(client.name||'Sin nombre')+'</strong></div>';
+    const card=holder.firstElementChild;
+    if(!card)return '';
+    card.classList.add('report-client-card');
+    card.querySelectorAll('button').forEach(el=>el.remove());
+    card.querySelectorAll('[onclick],[onchange]').forEach(el=>{el.removeAttribute('onclick');el.removeAttribute('onchange')});
+    card.querySelectorAll('.exr-statuses label').forEach(el=>el.remove());
+    const clientNotes=card.querySelector('.exr-client-notes textarea');
+    if(clientNotes){
+      const note=document.createElement('div');
+      note.className='exr-print-note';
+      note.textContent=clientNotes.value.trim()||'—';
+      clientNotes.replaceWith(note);
+    }
+    card.querySelectorAll('.exr-adminnote textarea').forEach(input=>{
+      const note=document.createElement('div');
+      note.className='exr-print-note';
+      note.textContent=input.value.trim()||'—';
+      input.replaceWith(note);
     });
-    return rows;
-  }
-
-  function serviceLines(client,issue,index){
-    const p='   ',d='      ';
-    const lines=[`${p}Servicio ${index+1}`];
-    add(lines,'Tipo de servicio',issue.type,d);
-    add(lines,'Estatus del trabajo',issue.state,d);
-    if(issue.active===false)lines.push(`${d}Servicio activo: No`);
-    add(lines,'Descripción del trabajo',issue.description,d);
-    add(lines,'Notas del servicio',issue.notes,d);
-    add(lines,'Dirección del servicio',issue.serviceAddress,d);
-    add(lines,'Herramientas, productos, equipo y acciones necesarias para realizar el servicio',issue.serviceToolsActions,d);
-    if(has(issue.confirmedAppointmentDate))lines.push(`${d}Fecha de cita confirmada: ${dateText(issue.confirmedAppointmentDate)}`);
-    add(lines,'Ventana de tiempo para cita confirmada',issue.appointmentWindow,d);
-    add(lines,'Observaciones',issue.observations||issue.actionNote,d);
-    add(lines,'Disponibilidad del cliente',issue.clientAvailability,d);
-    add(lines,'Confirmación de cita',issue.appointmentConfirmation,d);
-    add(lines,'Persona que recibirá',issue.appointmentReceiver,d);
-    add(lines,'Nota de coordinación',issue.appointmentNote,d);
-    add(lines,'Motivo de trabajo incompleto',issue.incompleteReason,d);
-    add(lines,'Qué falta',issue.missingWork,d);
-    add(lines,'Próxima acción',issue.nextAction,d);
-    add(lines,'Trabajo futuro / promesa',issue.futurePromise,d);
-    return lines;
-  }
-
-  function clientHeaderLines(c,issues,index){
-    const lines=[`${index+1}. CLIENTE: ${clean(c.name,'Sin nombre')}`];
-    add(lines,'Empresa',c.company);
-    add(lines,'Contacto',c.contact);
-    add(lines,'Teléfono',c.phone);
-    add(lines,'WhatsApp',c.whatsapp);
-    const fallbackAddress=issues.map(i=>clean(i.serviceAddress)).find(Boolean)||'';
-    add(lines,'Dirección',c.address||fallbackAddress);
-    lines.push(`Servicios en este reporte: ${issues.length}`);
-    return lines;
-  }
-
-  function buildReport(type='Todos'){
-    const rows=matchingIssues(type);
-    const grouped=new Map();
-    rows.forEach(issue=>{
-      const client=issue.client||{};
-      const key=String(client.id||client.name||'sin-cliente');
-      if(!grouped.has(key))grouped.set(key,{client,issues:[]});
-      grouped.get(key).issues.push(issue);
+    card.querySelectorAll('textarea').forEach(input=>{
+      const note=document.createElement('div');
+      note.className='exr-print-note';
+      note.textContent=input.value.trim()||'—';
+      input.replaceWith(note);
     });
-    const groups=Array.from(grouped.values());
-    const title=type==='Todos'?'TODOS LOS PENDIENTES':String(type).toUpperCase();
-    const lines=[`SIMOUN · REPORTE ${title} · ${dateLabel()}`,`Clientes: ${groups.length} · Servicios activos: ${rows.length}`,''];
-    if(!rows.length){lines.push(`No hay asuntos activos en ${type==='Todos'?'esta lista':type}.`);return lines.join('\n')}
+    return card.outerHTML;
+  }
 
-    groups.forEach((group,clientIndex)=>{
-      if(clientIndex)lines.push('','────────────────────','');
-      lines.push(...clientHeaderLines(group.client||{},group.issues,clientIndex));
-      group.issues.forEach((issue,serviceIndex)=>{
-        lines.push('');
-        lines.push(...serviceLines(group.client||{},issue,serviceIndex));
-      });
-    });
-    return lines.join('\n');
+  function reportBody(type){
+    const clients=reportClients(type);
+    const cards=clients.map(printableCard).join('');
+    return `<header class="report-heading"><h1>SIMOUN · Reporte por cliente</h1><p>Filtro de servicio: <strong>${escReport(type)}</strong> · ${clients.length} cliente${clients.length===1?'':'s'} · ${reportDate()}</p></header><main class="report-sheet">${cards||'<div class="report-empty">No hay clientes para este filtro.</div>'}</main>`;
+  }
+  function reportExtraCss(){
+    return `
+      body{margin:0;padding:18px;background:#f4f7fb;color:#10233f;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+      .report-heading{max-width:1100px;margin:0 auto 14px}.report-heading h1{font-size:22px;margin:0 0 5px}.report-heading p{margin:0;color:#61738b}
+      .report-sheet{max-width:1100px;margin:0 auto}
+      .report-client-card{display:block!important;background:#fff;border:1px solid #dce4ef;border-radius:16px;padding:14px;margin:0 0 14px;box-shadow:0 5px 18px rgba(16,35,63,.08);break-inside:auto;page-break-inside:auto}
+      .report-client-card .exr-service{break-inside:avoid;page-break-inside:avoid}
+      .report-client-card .exr-print-note{white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;border:1px solid #dce4ef;border-radius:9px;padding:9px;min-height:24px;font-size:13px}
+      .report-empty{padding:30px;text-align:center;color:#61738b;background:#fff;border-radius:14px}
+      @page{margin:12mm}
+      @media print{body{padding:0;background:#fff}.report-heading{margin:0 0 12px}.report-client-card{box-shadow:none;margin-bottom:10px}.report-client-card+.report-client-card{break-before:page;page-break-before:always}}
+    `;
+  }
+  function allCss(){
+    let css='';
+    for(const sheet of Array.from(document.styleSheets||[])){
+      try{css+=Array.from(sheet.cssRules||[]).map(rule=>rule.cssText).join('\\n')+'\\n'}catch{}
+    }
+    return css+'\\n'+reportExtraCss();
+  }
+  function reportDocument(type){
+    return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SIMOUN · Reporte por cliente</title><style>'+allCss()+'</style></head><body>'+reportBody(type)+'</body></html>';
+  }
+  function openPrint(type){
+    const win=window.open('','_blank');
+    if(!win){alert('Permite las ventanas emergentes para imprimir el reporte.');return}
+    win.document.open();win.document.write(reportDocument(type));win.document.close();
+    win.onload=()=>setTimeout(()=>{win.focus();win.print()},350);
+  }
+  function downloadReport(type){
+    const blob=new Blob([reportDocument(type)],{type:'text/html;charset=utf-8'});
+    const url=URL.createObjectURL(blob),a=document.createElement('a');
+    const slug=String(type||'todos').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    a.href=url;a.download='SIMOUN-reporte-'+(slug||'todos')+'.html';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
   }
 
   function ensureDialog(){
     let dlg=document.getElementById('categoryReportDlg');
     if(dlg)return dlg;
-    dlg=document.createElement('dialog');
-    dlg.id='categoryReportDlg';
+    dlg=document.createElement('dialog');dlg.id='categoryReportDlg';
+    dlg.style.maxWidth='1050px';
     dlg.innerHTML=`
       <div class="modal-head"><strong>📋 Reporte para jefe</strong><button class="close" type="button" aria-label="Cerrar">×</button></div>
       <div class="modal-body">
-        <div class="field" style="margin-bottom:10px"><label>Qué quieres reportar</label><select id="categoryReportType"></select></div>
-        <div class="notice" style="margin-bottom:10px">Incluye solamente asuntos activos de la categoría elegida. Dentro de cada ficha aparecen todos los campos que estén llenados; los campos vacíos se omiten.</div>
-        <textarea id="categoryReportText" aria-label="Reporte por categoría" style="width:100%;min-height:420px;padding:12px;border:1px solid var(--line);border-radius:12px;resize:vertical;background:#fff;color:var(--ink)"></textarea>
-        <div class="toolbar" style="margin-top:12px"><button class="btn" type="button" id="categoryCopyBtn">📋 Copiar</button><button class="btn secondary" type="button" id="categoryShareBtn">📤 Compartir</button><button class="btn light" type="button" id="categoryRefreshBtn">↻ Actualizar</button></div>
+        <div class="field" style="margin-bottom:10px"><label>Filtrar clientes por servicio</label><select id="categoryReportType"></select></div>
+        <div class="notice" style="margin-bottom:10px">El filtro selecciona qué clientes aparecen. Cada ficha incluye todos sus servicios y la información visible en Clientes.</div>
+        <div id="categoryReportPreview" class="report-sheet"></div>
+        <div class="toolbar" style="margin-top:12px"><button class="btn" type="button" id="categoryPrintBtn">🖨️ Imprimir / Guardar como PDF</button><button class="btn secondary" type="button" id="categoryDownloadBtn">⬇️ Descargar ficha HTML</button></div>
         <div id="categoryReportStatus" class="muted" role="status" aria-live="polite"></div>
       </div>`;
     document.body.appendChild(dlg);
-    const select=dlg.querySelector('#categoryReportType'),textarea=dlg.querySelector('#categoryReportText'),status=dlg.querySelector('#categoryReportStatus');
-    const refresh=()=>{textarea.value=buildReport(select.value||'Todos');status.textContent=''};
+    const select=dlg.querySelector('#categoryReportType'),preview=dlg.querySelector('#categoryReportPreview'),status=dlg.querySelector('#categoryReportStatus');
+    const refresh=()=>{preview.innerHTML=reportBody(select.value||'Todos');status.textContent=''};
     dlg.querySelector('.close').addEventListener('click',()=>dlg.close());
     select.addEventListener('change',refresh);
-    dlg.querySelector('#categoryRefreshBtn').addEventListener('click',()=>{refresh();status.textContent='Reporte actualizado.'});
-    dlg.querySelector('#categoryCopyBtn').addEventListener('click',async()=>{
-      let ok=false;
-      try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(textarea.value);ok=true}}catch{}
-      if(!ok){textarea.focus();textarea.select();try{ok=document.execCommand('copy')}catch{}textarea.setSelectionRange(0,0)}
-      status.textContent=ok?'✅ Copiado. Ya puedes pegarlo en WhatsApp.':'Selecciona el texto y usa Copiar.';
-    });
-    const share=dlg.querySelector('#categoryShareBtn');
-    if(typeof navigator.share!=='function')share.style.display='none';
-    else share.addEventListener('click',async()=>{try{await navigator.share({title:'Reporte SIMOUN · '+(select.value||'Todos'),text:textarea.value})}catch(e){if(e&&e.name!=='AbortError')status.textContent='No se pudo abrir el menú para compartir.'}});
+    dlg.querySelector('#categoryPrintBtn').addEventListener('click',()=>openPrint(select.value||'Todos'));
+    dlg.querySelector('#categoryDownloadBtn').addEventListener('click',()=>{downloadReport(select.value||'Todos');status.textContent='Se descargó el archivo HTML del reporte.'});
     return dlg;
   }
-
   function openCategoryReport(type=currentType()){
     const dlg=ensureDialog(),select=dlg.querySelector('#categoryReportType'),types=reportTypes();
-    select.innerHTML=types.map(t=>`<option value="${String(t).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}">${t}</option>`).join('');
+    select.innerHTML=types.map(t=>'<option value="'+escReport(t)+'">'+escReport(t)+'</option>').join('');
     select.value=types.includes(type)?type:'Todos';
-    dlg.querySelector('#categoryReportText').value=buildReport(select.value);
+    dlg.querySelector('#categoryReportPreview').innerHTML=reportBody(select.value);
     dlg.querySelector('#categoryReportStatus').textContent='';
     dlg.showModal();
   }
@@ -162,30 +125,20 @@
   function replaceOldReportButtons(root=document){
     root.querySelectorAll('[data-daily-report]').forEach(old=>{
       if(old.dataset.categoryReportReady==='1')return;
-      const btn=old.cloneNode(true);
-      btn.dataset.categoryReportReady='1';btn.textContent='📋 Reporte para jefe';
-      btn.addEventListener('click',()=>openCategoryReport(currentType()));
-      old.replaceWith(btn);
+      const btn=old.cloneNode(true);btn.dataset.categoryReportReady='1';btn.textContent='📋 Reporte para jefe';
+      btn.addEventListener('click',()=>openCategoryReport(currentType()));old.replaceWith(btn);
     });
   }
-
   function addCategoryButton(){
     const root=document.getElementById('expedientes');if(!root)return;
-    const list=root.querySelector('.review-list');if(!list)return;
-    const title=list.previousElementSibling;if(!title||title.querySelector('[data-category-report-one]'))return;
-    const type=currentType();if(type==='Todos')return;
-    const btn=document.createElement('button');
-    btn.type='button';btn.className='btn sm secondary';btn.dataset.categoryReportOne='1';btn.textContent=`📋 Reporte de ${type}`;
-    btn.addEventListener('click',()=>openCategoryReport(type));title.appendChild(btn);
+    const toolbar=root.querySelector(':scope > .toolbar');if(!toolbar||toolbar.querySelector('[data-category-report-main]'))return;
+    const btn=document.createElement('button');btn.type='button';btn.className='btn secondary';btn.dataset.categoryReportMain='1';btn.textContent='📋 Reporte para jefe';
+    btn.addEventListener('click',()=>openCategoryReport(currentType()));toolbar.appendChild(btn);
   }
-
   function enhance(){replaceOldReportButtons(document);addCategoryButton()}
   function install(){
     if(typeof renderClients==='function'&&!renderClients.__categoryReportEnhanced){
       const base=renderClients;const wrapped=function(q=''){const result=base(q);enhance();return result};wrapped.__categoryReportEnhanced=true;renderClients=wrapped;
-    }
-    if(typeof renderPendientes==='function'&&!renderPendientes.__categoryReportEnhanced){
-      const base=renderPendientes;const wrapped=function(){const result=base();enhance();return result};wrapped.__categoryReportEnhanced=true;renderPendientes=wrapped;
     }
     enhance();
     const root=document.getElementById('expedientes');
