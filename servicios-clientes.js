@@ -116,7 +116,7 @@ exrService=function(c,i){const html=exrServiceBeforeDocument(c,i),doc=i.document
 
 const exrServiceBeforeFollowupTags=exrService;
 exrService=function(c,i){
- const html=exrServiceBeforeFollowupTags(c,i),tags=[...(i.serviceWaitStates||[]),...(i.pendingQuick?['Rápido']:[]),i.pendingPriority||'Normal'];
+ const html=exrServiceBeforeFollowupTags(c,i),tags=[...(i.serviceWaitStates||[]),...(i.pendingQuick?['Rápido']:[]),i.pendingPriority||'Normal',...(i.active===false?['Servicio inactivo']:[])];
  const chips=tags.map(t=>'<span class="badge '+(t==='Urgente'?'red':t==='Importante'?'orange':t==='Esperando al cliente'||t==='Esperando a SIMOUN'||t==='Rápido'?'blue':'')+'">'+esc(t)+'</span>').join('');
  return html.replace('</div><button class="btn sm secondary" onclick="editIssue',chips+'</div><button class="btn sm secondary" onclick="editIssue');
 };
