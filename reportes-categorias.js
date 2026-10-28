@@ -129,30 +129,6 @@
     return lines;
   }
 
-  function financeLines(c){
-    const a=c?.finanzasCliente;
-    if(!a||typeof a!=='object')return [];
-    const lines=[];
-    if(has(a.saldo))lines.push(`Saldo pendiente del cliente: ${moneyText(a.saldo)}`);
-    if(has(a.due))lines.push(`Fecha prometida de pago: ${dateText(a.due)}`);
-    add(lines,'Notas de cobro',a.notes);
-    const inv=a.invoice||{};
-    add(lines,'Factura requerida',inv.needed);
-    add(lines,'Estado de factura',inv.status);
-    add(lines,'Folio de factura',inv.folio);
-    if(has(inv.issued))lines.push(`Fecha de emisión: ${dateText(inv.issued)}`);
-    if(has(inv.delivered))lines.push(`Fecha de entrega: ${dateText(inv.delivered)}`);
-    const payments=Array.isArray(a.payments)?a.payments:[];
-    if(payments.length){
-      lines.push('Historial de pagos:');
-      payments.forEach(p=>{
-        const bits=[dateText(p.date),has(p.amount)?moneyText(p.amount):'',clean(p.method),clean(p.note),p.void?'ANULADO':''].filter(Boolean);
-        if(bits.length)lines.push(`- ${bits.join(' · ')}`);
-      });
-    }
-    return lines;
-  }
-
   function clientHistoryLines(c){
     const history=Array.isArray(c?.history)?c.history:[];
     if(!history.length)return [];
@@ -174,7 +150,6 @@
     const fallbackAddress=issues.map(i=>clean(i.serviceAddress)).find(Boolean)||'';
     add(lines,'Dirección',c.address||fallbackAddress);
     add(lines,'Observaciones generales',c.notes);
-    add(lines,'Datos de facturación',c.billing);
     add(lines,'Creado por',c.createdBy);
     if(has(c.createdAt))lines.push(`Fecha de alta: ${dateText(c.createdAt)}`);
 
@@ -187,8 +162,6 @@
       });
     }
 
-    const finance=financeLines(c);
-    if(finance.length){lines.push('');lines.push('DATOS DE COBRO / FACTURACIÓN');lines.push(...finance)}
     const hist=clientHistoryLines(c);
     if(hist.length){lines.push('');lines.push(...hist)}
     lines.push(`Servicios en este reporte: ${issues.length}`);
