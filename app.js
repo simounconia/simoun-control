@@ -12,7 +12,7 @@ const TYPE_META={
   'Trabajo incompleto':{icon:'⚠️',color:'#e11d48',bg:'#fff0f4',ink:'#be123c'},
   'Trabajo futuro / promesa':{icon:'📌',color:'#c026d3',bg:'#fff0ff',ink:'#a21caf'}
 };
-const STATES=['Pendiente','En proceso','Esperando al cliente','Esperando autorización','Programado','Terminado','Cancelado'];
+const STATES=['Pendiente','En proceso','Esperando al cliente','Esperando a SIMOUN','Esperando autorización','Programado','Terminado','Cancelado'];
 const PAY_STATES=['Pendiente','En proceso de pago','Pago parcial','Pagado'];
 const PAY_DEST=['Efectivo','Depósito/transferencia — Cta. Factura ····0208','Depósito/transferencia — Cta. Remisión ····9615','Otro'];
 const LS='simoun_operativo_v1';
