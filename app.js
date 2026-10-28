@@ -100,7 +100,7 @@ function renderClients(q=''){
     <div class="list">${arr.map(c=>{
       const active=(c.issues||[]).filter(i=>i.active!==false&&!['Terminado','Cancelado'].includes(i.state));
       return `<div class="card client"><div><strong>${esc(c.name||'Sin nombre')}</strong><div class="muted">${esc(c.company||'')} ${c.contact?'· '+esc(c.contact):''}</div><div class="muted">${esc(c.phone||'')}</div><div class="badges">${active.slice(0,7).map(i=>`<span class="badge" style="${typeStyle(i.type)};background:var(--type-bg);color:var(--type-ink)">${esc(i.type)}</span>`).join('')}${active.length>7?`<span class="badge">+${active.length-7}</span>`:''}</div></div><div class="split-actions"><button class="btn sm" onclick="openClient('${c.id}')">Abrir / editar</button><button class="btn sm danger" onclick="deleteClient('${c.id}')">Borrar</button></div></div>`
-    }).join('')||'<div class="empty">No encontré clientes con ese servicio.</div>'}</div>`;
+    }).join('')||`<div class="empty">${issueTypeFilter==='Todos'?'No encontré clientes.':'No encontré clientes con '+esc(issueTypeFilter)+'.'}</div>`}</div>`;
   document.getElementById('clientSearch').oninput=e=>renderClients(e.target.value);
 }
 
