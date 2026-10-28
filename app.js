@@ -1,4 +1,4 @@
-const PAGES=[['inicio','Inicio'],['expedientes','Expedientes'],['calendario','Calendario'],['pendientes','Pendientes'],['monitoreos','Monitoreos'],['jornada','Jornada']];
+const PAGES=[['inicio','Inicio'],['expedientes','Expedientes'],['calendario','Calendario'],['monitoreos','Monitoreos'],['jornada','Jornada']];
 const ISSUE_TYPES=['Pregunta','Seguimiento','Reparación','Instalación','Mantenimiento','Cotización','Facturación','Cobro','Trabajo incompleto','Trabajo futuro / promesa'];
 const TYPE_META={
   'Pregunta':{icon:'❓',color:'#7c3aed',bg:'#f3e8ff',ink:'#6d28d9'},
@@ -20,7 +20,6 @@ const _rawLocalState=localStorage.getItem(LS);
 let state=JSON.parse(_rawLocalState||'null')||{clients:[],monitors:[],history:[],_freshInstall:true};
 let calCursor=new Date(); calCursor.setDate(1);
 let issueTypeFilter='Todos';
-let pendingFilter='Todos';
 let deferredInstallPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;dashboard()});
 
@@ -53,7 +52,6 @@ function showPage(id){
   document.getElementById('fab').style.display=id==='expedientes'?'block':'none';
   if(id==='expedientes')renderClients(document.getElementById('clientSearch')?.value||'');
   if(id==='calendario')renderCalendar();
-  if(id==='pendientes')renderPendientes();
   if(id==='jornada'&&typeof renderJornada==='function')renderJornada();
 }
 function allIssues(){return state.clients.flatMap(c=>(c.issues||[]).map(i=>({...i,client:c})))}
@@ -70,15 +68,10 @@ function activeIssues(){return allIssues().filter(x=>x.active!==false&&(!['Termi
 
 function dashboard(){
   const issues=activeIssues();
-  const ev=issues.flatMap(i=>issueDates(i).map(d=>({...d,issue:i})));
-  const t=today();
-  const overdue=ev.filter(e=>e.date<t).length, td=ev.filter(e=>e.date===t).length;
   document.getElementById('inicio').innerHTML=`
     <div class="grid cards">
       <div class="card"><div class="muted">Clientes</div><div class="metric">${state.clients.length}</div></div>
       <div class="card"><div class="muted">Asuntos activos</div><div class="metric">${issues.length}</div></div>
-      <div class="card"><div class="muted">Vencidos</div><div class="metric">${overdue}</div></div>
-      <div class="card"><div class="muted">Para hoy</div><div class="metric">${td}</div></div>
     </div>
     <div class="section-title"><h2>App y respaldo</h2></div>
     <div class="grid cards">
@@ -206,61 +199,6 @@ function renderCalendar(){
 function moveMonth(x){calCursor.setMonth(calCursor.getMonth()+x);renderCalendar()}
 function openDay(iso){const es=events().filter(e=>e.date===iso);document.getElementById('dayDlgTitle').textContent='Agenda · '+fmt(iso);document.getElementById('dayDlgBody').innerHTML=es.map(e=>`<div class="card" style="${typeStyle(e.issue.type)};border-left:5px solid var(--type)"><strong>${esc(e.client.name)} · ${esc(e.issue.type)}</strong><div class="muted">${esc(e.label)} ${e.issue.appointmentWindow?'· '+esc(e.issue.appointmentWindow):''}</div><div style="margin-top:8px"><button class="btn sm" onclick="dayDlg.close();openClient('${e.client.id}')">Abrir expediente</button></div></div>`).join('')||'<div class="empty">No hay eventos este día.</div>';dayDlg.showModal()}
 
-function pendingRows(){
-  const t=today(),rows=[];
-  activeIssues().forEach(i=>{const ds=issueDates(i);if(!ds.length)rows.push({group:'Sin fecha',date:'',issue:i,label:'Sin fecha asignada'});ds.forEach(d=>rows.push({group:d.date<t?'Vencidos':d.date===t?'Hoy':'Próximos',date:d.date,issue:i,label:d.label}));if(i.state==='Esperando al cliente')rows.push({group:'Esperando al cliente',date:'',issue:i,label:'Estado'});if(i.state==='Esperando autorización')rows.push({group:'Esperando autorización',date:'',issue:i,label:'Estado'});if(i.type==='Trabajo incompleto')rows.push({group:'Trabajo incompleto',date:i.attentionDate||(i.followupMode==='Fecha'?i.followupDate:'')||'',issue:i,label:'Trabajo incompleto'});if(i.type==='Cobro'&&i.payState!=='Pagado')rows.push({group:'Cobros pendientes',date:i.attentionDate||(i.followupMode==='Fecha'?i.followupDate:'')||'',issue:i,label:'Cobro · '+money(i.balance||0)})});
-  return rows;
-}
-let pendingPriorityFilter='Todos', pendingServiceFilter='Todos', pendingOrder='manual', pendingDrag=null;
-function pendingKey(i){return JSON.stringify([i.client.id,i.id])}
-function pendingOrdered(){
-  const list=activeIssues(), rank={Urgente:0,Importante:1,Normal:2};
-  return list.sort((a,b)=>pendingOrder==='priority'?(rank[a.pendingPriority||'Normal']-rank[b.pendingPriority||'Normal']||((a.pendingRank??1e12)-(b.pendingRank??1e12))):((a.pendingRank??1e12)-(b.pendingRank??1e12)));
-}
-function pendingMove(from,to){
-  const list=pendingOrdered(),a=list.findIndex(i=>pendingKey(i)===from),b=list.findIndex(i=>pendingKey(i)===to);
-  if(a<0||b<0||a===b)return;
-  const [item]=list.splice(a,1);list.splice(b,0,item);
-  list.forEach((i,n)=>{state.clients.find(c=>c.id===i.client.id).issues.find(x=>x.id===i.id).pendingRank=n});
-  pendingOrder='manual';save();
-}
-function renderPendientes(){
-  const groups=['Todos','Vencidos','Hoy','Próximos','Sin fecha','Esperando al cliente','Esperando autorización','Trabajo incompleto','Cobros pendientes'];
-  let rows=pendingRows();if(pendingFilter!=='Todos')rows=rows.filter(r=>r.group===pendingFilter);
-  const grouped=new Map();rows.forEach(r=>{const k=pendingKey(r.issue);if(!grouped.has(k))grouped.set(k,{issue:r.issue,details:[]});grouped.get(k).details.push(r)});
-  const matchesPendingMark=i=>pendingPriorityFilter==='Todos'?true:pendingPriorityFilter==='Rápidos'?!!i.pendingQuick:pendingPriorityFilter==='Primero'?!!i.pendingFirst:pendingPriorityFilter==='Esperando al cliente'||pendingPriorityFilter==='Esperando a SIMOUN'?(i.serviceWaitStates||[]).includes(pendingPriorityFilter):(i.pendingPriority||'Normal')===pendingPriorityFilter;
-  const visible=pendingOrdered().filter(i=>grouped.has(pendingKey(i))).filter(i=>pendingServiceFilter==='Todos'||i.type===pendingServiceFilter).filter(matchesPendingMark);
-  const root=document.getElementById('pendientes');
-  root.innerHTML=`<div class="filters">${groups.map(g=>`<button class="filter ${g===pendingFilter?'active':''}" data-group="${esc(g)}">${g}</button>`).join('')}</div><div class="toolbar" style="margin:12px 0;display:flex;flex-wrap:wrap;gap:8px"><label>Servicio <select id="pendingServiceFilter">${['Todos',...(typeof SERVICE_TYPES!=='undefined'?SERVICE_TYPES:ISSUE_TYPES)].map(g=>`<option ${g===pendingServiceFilter?'selected':''}>${esc(g)}</option>`).join('')}</select></label><label>Etiqueta / prioridad <select id="pendingPriorityFilter">${['Todos','Urgente','Importante','Normal','Rápidos','Primero','Esperando al cliente','Esperando a SIMOUN'].map(g=>`<option ${g===pendingPriorityFilter?'selected':''}>${g}</option>`).join('')}</select></label><label>Orden <select id="pendingOrder"><option value="manual" ${pendingOrder==='manual'?'selected':''}>Mi orden</option><option value="priority" ${pendingOrder==='priority'?'selected':''}>Por prioridad</option></select></label></div><p class="muted">Arrastra desde ↕ o usa las flechas. Las marcas y el siguiente paso se guardan automáticamente.</p><div class="list" id="pendingCards"></div>`;
-  root.querySelectorAll('[data-group]').forEach(b=>b.onclick=()=>{pendingFilter=b.dataset.group;renderPendientes()});
-  root.querySelector('#pendingPriorityFilter').onchange=e=>{pendingPriorityFilter=e.target.value;renderPendientes()};
-  root.querySelector('#pendingServiceFilter').onchange=e=>{pendingServiceFilter=e.target.value;renderPendientes()};
-  root.querySelector('#pendingOrder').onchange=e=>{pendingOrder=e.target.value;renderPendientes()};
-  const container=root.querySelector('#pendingCards');
-  visible.forEach((i,index)=>{
-    const real=()=>state.clients.find(c=>c.id===i.client.id)?.issues.find(x=>x.id===i.id);
-    const update=(k,v)=>{const item=real();if(item){item[k]=v;save()}};
-    const details=[...new Set(grouped.get(pendingKey(i)).details.map(r=>r.label+(r.date?' · '+fmt(r.date):'')))];
-    const serviceCard=typeof exrService==='function'?exrService(i.client,i):issueCard(i.client,i);
-    const card=document.createElement('div');card.className='card pending-item';card.style.cssText=typeStyle(i.type)+';border-left:5px solid var(--type)';
-    card.innerHTML=`<div class="pending-client-head"><div><strong>${esc(i.client.name)}</strong><div class="muted">${esc(i.client.company||'')}</div></div><button class="btn sm secondary" type="button" data-open-client>Ver cliente</button></div><div class="pending-context">${details.map(d=>'<span class="badge orange">'+esc(d)+'</span>').join('')}</div><div class="pending-service-shell">${serviceCard}</div><div class="pending-controls"><div class="pending-actions"></div><label class="pending-next-step">Siguiente paso<input class="pending-note" style="width:100%;box-sizing:border-box;margin-top:6px" maxlength="500" placeholder="Ej. Llamarle hoy para acordar cita" value="${esc(i.pendingNote||'')}"></label><div class="pending-note-actions" style="display:flex;align-items:center;gap:8px;margin-top:6px"><button class="btn sm" type="button">✓ Guardar nota</button><small class="pending-saved" aria-live="polite">${i.pendingNote?'Nota guardada':''}</small></div></div>`;
-    card.querySelector('[data-open-client]').onclick=()=>openClient(i.client.id);
-    const actions=card.querySelector('.pending-actions');
-    function button(text,fn,active=false){const b=document.createElement('button');b.type='button';b.className='btn sm '+(active?'':'secondary');b.textContent=text;b.onclick=fn;actions.append(b);return b}
-    [['Urgente','🔴'],['Importante','🟠'],['Normal','⚪']].forEach(([v,icon])=>{const active=(i.pendingPriority||'Normal')===v;button(icon+' '+v,()=>update('pendingPriority',v),active).setAttribute('aria-pressed',active)});
-    button('⚡ Rápido',()=>update('pendingQuick',!i.pendingQuick),!!i.pendingQuick).setAttribute('aria-pressed',!!i.pendingQuick);
-    button('📌 Primero',()=>{const item=real();if(!item)return;item.pendingFirst=!item.pendingFirst;if(item.pendingFirst)item.pendingRank=Math.min(0,...activeIssues().map(x=>x.pendingRank??0))-1;pendingOrder='manual';save()},!!i.pendingFirst).setAttribute('aria-pressed',!!i.pendingFirst);
-    const handle=button('↕ Arrastrar',()=>{});handle.draggable=true;handle.style.cursor='grab';handle.ondragstart=e=>{pendingDrag=pendingKey(i);e.dataTransfer.setData('text/plain',pendingDrag);e.dataTransfer.effectAllowed='move'};handle.ondragend=()=>{pendingDrag=null};
-    card.ondragover=e=>{if(pendingDrag){e.preventDefault();e.dataTransfer.dropEffect='move'}};card.ondrop=e=>{e.preventDefault();if(pendingDrag)pendingMove(pendingDrag,pendingKey(i));pendingDrag=null};
-    button('↑',()=>pendingMove(pendingKey(i),pendingKey(visible[index-1]))).disabled=index===0;
-    button('↓',()=>pendingMove(pendingKey(i),pendingKey(visible[index+1]))).disabled=index===visible.length-1;
-    button('Abrir',()=>openClient(i.client.id));
-    const input=card.querySelector('.pending-note'),saveNote=card.querySelector('.pending-note-actions button'),saved=card.querySelector('.pending-saved');input.oninput=()=>{saved.textContent='Cambios sin guardar'};saveNote.onclick=()=>{const item=real();if(!item)return;item.pendingNote=input.value;try{delete state._freshInstall;state._updatedAt=new Date().toISOString();localStorage.setItem(LS,JSON.stringify(state));window.SimounSync?.queuePush(state);saved.textContent='✓ Nota guardada'}catch{saved.textContent='No se pudo guardar. Intenta de nuevo.'}};
-    container.append(card);
-  });
-  if(!visible.length)container.innerHTML='<div class="empty">No hay pendientes en esta categoría.</div>';
-}
-
 function renderMonitors(){document.getElementById('monitoreos').innerHTML=`<div class="notice">Módulo separado dentro de la misma aplicación. Esta versión permite guardar, editar y borrar clientes de monitoreo.</div><div class="section-title"><h2>Monitoreos</h2><button class="btn" onclick="addMonitor()">+ Cliente</button></div><div class="list">${state.monitors.map(m=>`<div class="card monitor-row"><div class="wide"><strong>${esc(m.name)}</strong><div class="muted">${esc(m.company||'')}</div></div><div><small class="muted">Mensualidad</small><br>${money(m.monthly||0)}</div><div><small class="muted">Cubierto hasta</small><br>${esc(m.coveredThrough||'Sin dato')}</div><div class="split-actions"><button class="btn sm secondary" onclick="editMonitor('${m.id}')">Editar</button><button class="btn sm danger" onclick="deleteMonitor('${m.id}')">Borrar</button></div></div>`).join('')||'<div class="empty">Aún no hay clientes de monitoreo.</div>'}</div>`}
 function addMonitor(){const name=prompt('Nombre del cliente de monitoreo');if(!name)return;state.monitors.push({id:uid(),name,company:'',monthly:0,coveredThrough:'',payments:[]});save()}
 function editMonitor(id){const m=state.monitors.find(x=>x.id===id);if(!m)return;const company=prompt('Empresa',m.company||'');if(company===null)return;const monthly=prompt('Mensualidad',m.monthly||0);if(monthly===null)return;const cov=prompt('Cubierto hasta (ej. Octubre 2026)',m.coveredThrough||'');if(cov===null)return;m.company=company;m.monthly=Number(monthly||0);m.coveredThrough=cov;save()}
@@ -294,7 +232,7 @@ async function installPWA(){
   alert('Si no aparece el instalador automático, abre el menú del navegador y elige “Instalar app” o “Agregar a pantalla principal”.')
 }
 
-function renderAll(){dashboard();renderClients();renderCalendar();renderPendientes();renderMonitors();if(typeof renderJornada==='function')renderJornada()}
+function renderAll(){dashboard();renderClients();renderCalendar();renderMonitors();if(typeof renderJornada==='function')renderJornada()}
 nav();renderAll();document.getElementById('fab').onclick=newClient;showPage('inicio');
 window.SimounSync?.init({getState:()=>state,applyState:(remote)=>{state=remote;renderAll()}});
 if('serviceWorker' in navigator && location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn))}
