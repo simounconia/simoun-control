@@ -35,9 +35,11 @@
 #coordForm textarea{min-height:75px}
 #coordForm .toolbar{margin-top:8px!important}
 #coordForm button{min-height:42px}
+ #privateGate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:#f4f7fb;color:#10233f}#privateGate .gate-card{width:min(100%,440px);padding:24px;background:#fff;border:1px solid #dce4ef;border-radius:18px;box-shadow:0 12px 36px rgba(16,35,63,.15)}#privateGate h2{margin:0 0 8px}#privateGate p{color:#61738b;line-height:1.5}
 </style>
 </head>
 <body>
+<div id="privateGate"><div class="gate-card"><h2>SIMOUN privado</h2><p>El acceso a esta app está limitado a la cuenta administradora.</p><button class="btn" type="button" onclick="SimounSync.openSettings('Inicia sesión con tu cuenta administradora.')">Iniciar sesión</button></div></div>
 <div class="app">
 <header class="topbar">
   <h1>SIMOUN · Control Operativo</h1><small>Expedientes, agenda, pendientes y monitoreos</small>
@@ -60,7 +62,7 @@
 <dialog id="syncDlg"><div class="modal-head"><strong>Sincronización privada</strong><button class="close" onclick="syncDlg.close()">×</button></div><div class="modal-body" id="syncDlgBody"></div></dialog>
 <dialog id="monitorDlg"><div class="modal-head"><strong id="monitorDlgTitle">Cliente de monitoreo</strong><button class="close" onclick="monitorDlg.close()">×</button></div><div class="modal-body" id="monitorDlgBody"></div></dialog>
 <dialog id="paymentDlg"><div class="modal-head"><strong id="paymentDlgTitle">Pago de monitoreo</strong><button class="close" onclick="paymentDlg.close()">×</button></div><div class="modal-body" id="paymentDlgBody"></div></dialog>
-<script src="sync.js"></script>
+<script src="sync.js?v=20261028-1"></script>
 <script src="app.js?v=20261024-1"></script>
 <script src="monitoreos.js"></script>
 <script src="captura-rapida.js?v=20261019-6"></script>
