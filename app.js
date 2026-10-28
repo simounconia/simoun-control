@@ -65,7 +65,8 @@ function issueDates(i){
   if(attention&&(!i.appointmentConfirmation||i.appointmentConfirmation==='Confirmada'))a.push({date:attention,label:'Atención / seguimiento / cita'});
   return a;
 }
-function activeIssues(){return allIssues().filter(x=>x.active!==false&&!['Terminado','Cancelado'].includes(x.state))}
+function hasPendingFollowup(i){return (Array.isArray(i.serviceWaitStates)&&i.serviceWaitStates.length>0)||!!i.pendingQuick||['Urgente','Importante'].includes(i.pendingPriority)}
+function activeIssues(){return allIssues().filter(x=>x.active!==false&&(!['Terminado','Cancelado'].includes(x.state)||hasPendingFollowup(x)))}
 
 function dashboard(){
   const issues=activeIssues();
