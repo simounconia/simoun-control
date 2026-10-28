@@ -83,32 +83,24 @@ function dashboard(){
 function typeFilterPanel(){
   const counts=Object.fromEntries(ISSUE_TYPES.map(t=>[t,allIssues().filter(i=>i.type===t).length]));
   const total=allIssues().length;
-  return `<div class="card type-panel"><h3>Revisar asuntos en grupo</h3><div class="muted" style="margin-bottom:10px">Toca una categoría para ver juntos todos los asuntos de ese tipo.</div><div class="type-filters">
+  return `<div class="card type-panel"><h3>Revisar asuntos en grupo</h3><div class="muted" style="margin-bottom:10px">Toca una categoría para ver cada cliente que tenga ese servicio, con su ficha completa y sus demás servicios.</div><div class="type-filters">
     <button class="type-filter ${issueTypeFilter==='Todos'?'active':''}" style="--type:#0b2c55" onclick="setIssueTypeFilter('Todos')"><strong>📚 Todos</strong><small>${total} asunto${total===1?'':'s'}</small></button>
     ${ISSUE_TYPES.map(t=>{const m=TYPE_META[t];return `<button class="type-filter ${issueTypeFilter===t?'active':''}" style="${typeStyle(t)}" onclick="setIssueTypeFilter(${JSON.stringify(t)})"><strong>${m.icon} ${esc(t)}</strong><small>${counts[t]} asunto${counts[t]===1?'':'s'}</small></button>`}).join('')}
   </div></div>`;
 }
 function setIssueTypeFilter(type){issueTypeFilter=type;renderClients(document.getElementById('clientSearch')?.value||'')}
 
-function groupedReview(){
-  if(issueTypeFilter==='Todos')return '';
-  const rows=allIssues().filter(i=>i.type===issueTypeFilter);
-  return `<div class="section-title"><h2>${typeTitle(issueTypeFilter)} <span class="muted">(${rows.length})</span></h2></div>
-  <div class="review-list">${rows.map(i=>`<div class="card review-card" style="${typeStyle(i.type)}"><div class="issue-head"><div><strong>${esc(i.client.name||'Sin nombre')}</strong><div class="muted">${esc(i.client.company||'')}${i.client.contact?' · '+esc(i.client.contact):''}</div></div><span class="badge">${esc(i.state||'Pendiente')}</span></div><div style="margin:9px 0">${esc(i.description||'Sin descripción')}</div><div class="split-actions"><button class="btn sm secondary" onclick="openClient('${i.client.id}')">Abrir expediente</button><button class="btn sm" onclick="editIssue('${i.client.id}','${i.id}')">Editar</button><button class="btn sm danger" onclick="deleteIssue('${i.client.id}','${i.id}',true)">Borrar</button></div></div>`).join('')||'<div class="empty">No hay asuntos de este tipo.</div>'}</div>`;
-}
-
 function renderClients(q=''){
   const s=q.trim().toLowerCase();
-  const arr=state.clients.filter(c=>[c.name,c.contact,c.company,c.address,c.phone,c.whatsapp].some(v=>(v||'').toLowerCase().includes(s)));
+  const arr=state.clients.filter(c=>[c.name,c.contact,c.company,c.address,c.phone,c.whatsapp].some(v=>(v||'').toLowerCase().includes(s))).filter(c=>issueTypeFilter==='Todos'||(c.issues||[]).some(i=>i.type===issueTypeFilter));
   document.getElementById('expedientes').innerHTML=`
     <div class="toolbar"><input id="clientSearch" class="search" placeholder="Buscar por cliente, empresa, teléfono o dirección" value="${esc(q)}"><button class="btn" onclick="newClient()">+ Nuevo expediente</button></div>
     ${typeFilterPanel()}
-    ${groupedReview()}
-    <div class="section-title"><h2>Expedientes</h2><span class="muted">${arr.length} cliente${arr.length===1?'':'s'}</span></div>
+    <div class="section-title"><h2>${issueTypeFilter==='Todos'?'Expedientes':'Clientes con '+esc(issueTypeFilter)}</h2><span class="muted">${arr.length} cliente${arr.length===1?'':'s'}</span></div>
     <div class="list">${arr.map(c=>{
       const active=(c.issues||[]).filter(i=>i.active!==false&&!['Terminado','Cancelado'].includes(i.state));
       return `<div class="card client"><div><strong>${esc(c.name||'Sin nombre')}</strong><div class="muted">${esc(c.company||'')} ${c.contact?'· '+esc(c.contact):''}</div><div class="muted">${esc(c.phone||'')}</div><div class="badges">${active.slice(0,7).map(i=>`<span class="badge" style="${typeStyle(i.type)};background:var(--type-bg);color:var(--type-ink)">${esc(i.type)}</span>`).join('')}${active.length>7?`<span class="badge">+${active.length-7}</span>`:''}</div></div><div class="split-actions"><button class="btn sm" onclick="openClient('${c.id}')">Abrir / editar</button><button class="btn sm danger" onclick="deleteClient('${c.id}')">Borrar</button></div></div>`
-    }).join('')||'<div class="empty">No encontré expedientes.</div>'}</div>`;
+    }).join('')||'<div class="empty">No encontré clientes con ese servicio.</div>'}</div>`;
   document.getElementById('clientSearch').oninput=e=>renderClients(e.target.value);
 }
 
