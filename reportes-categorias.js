@@ -68,9 +68,9 @@
   function allCss(){
     let css='';
     for(const sheet of Array.from(document.styleSheets||[])){
-      try{css+=Array.from(sheet.cssRules||[]).map(rule=>rule.cssText).join('\\n')+'\\n'}catch{}
+      try{css+=Array.from(sheet.cssRules||[]).map(rule=>rule.cssText).join('\n')+'\\n'}catch{}
     }
-    return css+'\\n'+reportExtraCss();
+    return css+'\n'+reportExtraCss();
   }
   function reportDocument(type){
     return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SIMOUN · Reporte por cliente</title><style>'+allCss()+'</style></head><body>'+reportBody(type)+'</body></html>';
@@ -84,7 +84,7 @@
   function downloadReport(type){
     const blob=new Blob([reportDocument(type)],{type:'text/html;charset=utf-8'});
     const url=URL.createObjectURL(blob),a=document.createElement('a');
-    const slug=String(type||'todos').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    const slug=String(type||'todos').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
     a.href=url;a.download='SIMOUN-reporte-'+(slug||'todos')+'.html';document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),30000);
   }
