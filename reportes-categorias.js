@@ -56,88 +56,28 @@
     return rows;
   }
 
-  function workReports(client,issue){
-    try{
-      const rows=window.SimounSync?.issueActivities?.(client?.id,issue?.id)||[];
-      return Array.isArray(rows)?rows:[];
-    }catch{return []}
-  }
-
-  function issueHistoryLines(issue,prefix='      '){
-    const history=Array.isArray(issue.history)?issue.history:[];
-    if(!history.length)return [];
-    const lines=[`${prefix}Historial del asunto:`];
-    history.forEach(h=>{
-      const bits=[dateText(h.date),clean(h.action),clean(h.detail)].filter(Boolean);
-      if(bits.length)lines.push(`${prefix}- ${bits.join(' · ')}`);
-    });
-    return lines.length>1?lines:[];
-  }
-
   function serviceLines(client,issue,index){
     const p='   ',d='      ';
     const lines=[`${p}Servicio ${index+1}`];
     add(lines,'Tipo de servicio',issue.type,d);
-    add(lines,'Estatus',issue.state,d);
-    if(issue.active===false)lines.push(`${d}Asunto activo: No`);
+    add(lines,'Estatus del trabajo',issue.state,d);
+    if(issue.active===false)lines.push(`${d}Servicio activo: No`);
     add(lines,'Descripción del trabajo',issue.description,d);
-    add(lines,'Notas',issue.notes,d);
+    add(lines,'Notas del servicio',issue.notes,d);
     add(lines,'Dirección del servicio',issue.serviceAddress,d);
     add(lines,'Herramientas, productos, equipo y acciones necesarias para realizar el servicio',issue.serviceToolsActions,d);
-    add(lines,'Creado por',issue.createdBy,d);
-    
-
-    const contactDate=issue.clientContactDate||issue.createdDate;
-    if(has(contactDate))lines.push(`${d}Fecha de contacto del cliente: ${dateText(contactDate)}`);
-    const followMode=issue.followupMode||(issue.followupDate?'Fecha':'Sin fecha');
-    const serviceDate=followMode==='Fecha'&&has(issue.followupDate)?dateText(issue.followupDate):followMode;
-    lines.push(`${d}Fecha de seguimiento o atención: ${serviceDate}`);
     if(has(issue.confirmedAppointmentDate))lines.push(`${d}Fecha de cita confirmada: ${dateText(issue.confirmedAppointmentDate)}`);
     add(lines,'Ventana de tiempo para cita confirmada',issue.appointmentWindow,d);
     add(lines,'Observaciones',issue.observations||issue.actionNote,d);
     add(lines,'Disponibilidad del cliente',issue.clientAvailability,d);
     add(lines,'Confirmación de cita',issue.appointmentConfirmation,d);
-    add(lines,'Horario propuesto por el jefe',issue.proposedAppointmentWindow,d);
     add(lines,'Persona que recibirá',issue.appointmentReceiver,d);
     add(lines,'Nota de coordinación',issue.appointmentNote,d);
-
-    if(issue.reported===true)lines.push(`${d}Ya fue reportado: Sí`);
     add(lines,'Motivo de trabajo incompleto',issue.incompleteReason,d);
     add(lines,'Qué falta',issue.missingWork,d);
     add(lines,'Próxima acción',issue.nextAction,d);
     add(lines,'Trabajo futuro / promesa',issue.futurePromise,d);
-    add(lines,'Requiere factura',issue.billingYes,d);
-
-    if(has(issue.total))lines.push(`${d}Total a cobrar: ${moneyText(issue.total)}`);
-    if(has(issue.paid))lines.push(`${d}Cantidad pagada: ${moneyText(issue.paid)}`);
-    if(has(issue.balance))lines.push(`${d}Saldo pendiente: ${moneyText(issue.balance)}`);
-    add(lines,'Estado del cobro',issue.payState,d);
-    add(lines,'Forma de pago',issue.paymentMethod,d);
-    add(lines,'Destino del pago',issue.paymentDestination,d);
-
-    const reports=workReports(client,issue);
-    if(reports.length){
-      lines.push(`${d}Reportes / anotaciones del equipo:`);
-      reports.forEach(r=>{
-        const who=clean(r.actor_email||r.actor_name||r.actor_role);
-        const bits=[dateText(r.created_at),clean(r.status),clean(r.note),who].filter(Boolean);
-        if(bits.length)lines.push(`${d}- ${bits.join(' · ')}`);
-      });
-    }
-
-    lines.push(...issueHistoryLines(issue,d));
     return lines;
-  }
-
-  function clientHistoryLines(c){
-    const history=Array.isArray(c?.history)?c.history:[];
-    if(!history.length)return [];
-    const lines=['Historial de la ficha:'];
-    history.forEach(h=>{
-      const bits=[dateText(h.date),clean(h.action),clean(h.detail)].filter(Boolean);
-      if(bits.length)lines.push(`- ${bits.join(' · ')}`);
-    });
-    return lines.length>1?lines:[];
   }
 
   function clientHeaderLines(c,issues,index){
@@ -146,24 +86,8 @@
     add(lines,'Contacto',c.contact);
     add(lines,'Teléfono',c.phone);
     add(lines,'WhatsApp',c.whatsapp);
-    add(lines,'Correo',c.email);
     const fallbackAddress=issues.map(i=>clean(i.serviceAddress)).find(Boolean)||'';
     add(lines,'Dirección',c.address||fallbackAddress);
-    add(lines,'Observaciones generales',c.notes);
-    add(lines,'Creado por',c.createdBy);
-    if(has(c.createdAt))lines.push(`Fecha de alta: ${dateText(c.createdAt)}`);
-
-    const docs=Array.isArray(c.docs)?c.docs:[];
-    if(docs.length){
-      lines.push('Documentos adjuntos:');
-      docs.forEach(doc=>{
-        const size=Number(doc.size||0)>0?` · ${Math.round(Number(doc.size)/1024)} KB`:'';
-        lines.push(`- ${clean(doc.name,'Documento')}${size}`);
-      });
-    }
-
-    const hist=clientHistoryLines(c);
-    if(hist.length){lines.push('');lines.push(...hist)}
     lines.push(`Servicios en este reporte: ${issues.length}`);
     return lines;
   }
