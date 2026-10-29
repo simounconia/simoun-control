@@ -80,19 +80,21 @@ function dashboard(){
     </div>`;
 }
 
+function hasActiveServiceCharge(i){return i.active!==false&&Number(i.servicePrice||i.total||0)>0}
 function typeFilterPanel(){
   const counts=Object.fromEntries(ISSUE_TYPES.map(t=>[t,allIssues().filter(i=>i.type===t).length]));
   const total=allIssues().length;
   return `<div class="card type-panel"><h3>Revisar asuntos en grupo</h3><div class="muted" style="margin-bottom:10px">Toca una categoría para ver cada cliente que tenga ese servicio, con su ficha completa y sus demás servicios.</div><div class="type-filters">
     <button class="type-filter ${issueTypeFilter==='Todos'?'active':''}" style="--type:#0b2c55" onclick="setIssueTypeFilter('Todos')"><strong>📚 Todos</strong><small>${total} asunto${total===1?'':'s'}</small></button>
-    ${ISSUE_TYPES.map(t=>{const m=TYPE_META[t];return `<button class="type-filter ${issueTypeFilter===t?'active':''}" style="${typeStyle(t)}" onclick="setIssueTypeFilter(${JSON.stringify(t)})"><strong>${m.icon} ${esc(t)}</strong><small>${counts[t]} asunto${counts[t]===1?'':'s'}</small></button>`}).join('')}
+    ${ISSUE_TYPES.map(t=>{const m=TYPE_META[t];return `<button class="type-filter ${issueTypeFilter===t?'active':''}" style="${typeStyle(t)}" onclick="setIssueTypeFilter(${esc(JSON.stringify(t))})"><strong>${m.icon} ${esc(t)}</strong><small>${counts[t]} asunto${counts[t]===1?'':'s'}</small></button>`}).join('')}
+    <button type="button" data-billing-payments="1" class="type-filter ${issueTypeFilter==='Cobranza y pagos'?'active':''}" style="--type:#ca8a04" onclick="setIssueTypeFilter('Cobranza y pagos')"><strong>💰 Cobranza y pagos</strong><small>${allIssues().filter(hasActiveServiceCharge).length} servicios activos con cargo</small></button>
   </div></div>`;
 }
 function setIssueTypeFilter(type){issueTypeFilter=type;renderClients(document.getElementById('clientSearch')?.value||'')}
 
 function renderClients(q=''){
   const s=q.trim().toLowerCase();
-  const arr=state.clients.filter(c=>[c.name,c.contact,c.company,c.address,c.phone,c.whatsapp].some(v=>(v||'').toLowerCase().includes(s))).filter(c=>issueTypeFilter==='Todos'||(c.issues||[]).some(i=>i.type===issueTypeFilter));
+  const arr=state.clients.filter(c=>[c.name,c.contact,c.company,c.address,c.phone,c.whatsapp].some(v=>(v||'').toLowerCase().includes(s))).filter(c=>issueTypeFilter==='Todos'||(c.issues||[]).some(i=>issueTypeFilter==='Cobranza y pagos'?hasActiveServiceCharge(i):i.type===issueTypeFilter));
   document.getElementById('expedientes').innerHTML=`
     <div class="toolbar"><input id="clientSearch" class="search" placeholder="Buscar por cliente, empresa, teléfono o dirección" value="${esc(q)}"><button class="btn" onclick="newClient()">+ Nuevo expediente</button></div>
     ${typeFilterPanel()}
