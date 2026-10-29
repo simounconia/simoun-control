@@ -165,7 +165,8 @@ window.addEventListener('load',()=>{const previousRenderClients=renderClients;re
   }
   btn.classList.toggle('active',issueTypeFilter===BILLING_FILTER);
   btn.style.cssText='--type:#ca8a04;--type-bg:#fff9db;--type-ink:#854d0e';
-  btn.innerHTML='<strong>💰 Cobranza y pagos</strong><small>'+countCharged()+' servicios</small>';
+  const label='<strong>💰 Cobranza y pagos</strong><small>'+countCharged()+' servicios</small>';
+  if(btn.innerHTML!==label)btn.innerHTML=label;
  }
  typeFilterPanel=function(){
   const html=originalTypeFilterPanel();
