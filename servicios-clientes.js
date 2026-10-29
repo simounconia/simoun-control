@@ -129,7 +129,7 @@ const originalRenderAll=renderAll;
 renderAll=function(){migrateServices();originalRenderAll();for(const id of ['inicio']){const root=document.getElementById(id);if(!root)continue;const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let node;while(node=walker.nextNode())node.nodeValue=node.nodeValue.replaceAll('Asuntos activos','Servicios activos').replaceAll('asuntos','servicios').replaceAll('Asuntos','Servicios').replaceAll('asunto','servicio').replaceAll('Asunto','Servicio')}const metric=[...document.querySelectorAll('#inicio .grid.cards .card .muted')].find(x=>x.textContent.trim()==='Asuntos activos');if(metric)metric.textContent='Servicios activos'};
 
 const legacyRenderClients=renderClients;
-renderClients=function(q=''){legacyRenderClients(q);const root=document.getElementById('expedientes');if(!root)return;root.innerHTML=root.innerHTML.replaceAll('Expedientes','Clientes').replaceAll('expediente','cliente').replaceAll('asuntos','servicios').replaceAll('Asuntos','Servicios').replaceAll('asunto','servicio').replaceAll('Asunto','Servicio');document.querySelectorAll('#expedientes .type-panel h3').forEach(x=>x.textContent='Revisar servicios por tipo');root.querySelectorAll('.type-filter').forEach(b=>{const txt=b.textContent||'';if(!txt.includes('Todos')&&!SERVICE_TYPES.some(t=>txt.includes(t)))b.remove()})};
+renderClients=function(q=''){legacyRenderClients(q);const root=document.getElementById('expedientes');if(!root)return;root.innerHTML=root.innerHTML.replaceAll('Expedientes','Clientes').replaceAll('expediente','cliente').replaceAll('asuntos','servicios').replaceAll('Asuntos','Servicios').replaceAll('asunto','servicio').replaceAll('Asunto','Servicio');document.querySelectorAll('#expedientes .type-panel h3').forEach(x=>x.textContent='Revisar servicios por tipo');root.querySelectorAll('.type-filter').forEach(b=>{const txt=b.textContent||'';if(!b.hasAttribute('data-billing-payments')&&!txt.includes('Todos')&&!SERVICE_TYPES.some(t=>txt.includes(t)))b.remove()})};
 
 /* Restore renamed labels after all extension render hooks have run. */
 document.querySelector('#nav button[data-page="expedientes"]')?.replaceChildren(document.createTextNode('Clientes'));
@@ -137,82 +137,15 @@ const title=document.querySelector('.topbar small');if(title)title.textContent='
 const fab=document.getElementById('fab');if(fab)fab.title='Nuevo cliente';
 const clientTitle=document.querySelector('#clientDlgTitle');if(clientTitle)clientTitle.textContent='Cliente';
  renderAll();
-function cleanupServiceLabels(){ISSUE_TYPES.splice(0,ISSUE_TYPES.length,...SERVICE_TYPES);const navButton=document.querySelector('#nav button[data-page="expedientes"]');if(navButton)navButton.textContent='Clientes';const subtitle=document.querySelector('.topbar small');if(subtitle)subtitle.textContent='Clientes, servicios, agenda y monitoreos';const metric=[...document.querySelectorAll('#inicio .grid.cards .card .muted')].find(x=>x.textContent.trim()==='Asuntos activos');if(metric)metric.textContent='Servicios activos';const root=document.getElementById('expedientes');root?.querySelectorAll('.type-filter').forEach(b=>{const txt=b.textContent||'';if(!txt.includes('Todos')&&!SERVICE_TYPES.some(t=>txt.includes(t)))b.remove()})}
+function cleanupServiceLabels(){ISSUE_TYPES.splice(0,ISSUE_TYPES.length,...SERVICE_TYPES);const navButton=document.querySelector('#nav button[data-page="expedientes"]');if(navButton)navButton.textContent='Clientes';const subtitle=document.querySelector('.topbar small');if(subtitle)subtitle.textContent='Clientes, servicios, agenda y monitoreos';const metric=[...document.querySelectorAll('#inicio .grid.cards .card .muted')].find(x=>x.textContent.trim()==='Asuntos activos');if(metric)metric.textContent='Servicios activos';const root=document.getElementById('expedientes');root?.querySelectorAll('.type-filter').forEach(b=>{const txt=b.textContent||'';if(!b.hasAttribute('data-billing-payments')&&!txt.includes('Todos')&&!SERVICE_TYPES.some(t=>txt.includes(t)))b.remove()})}
 const originalServiceEdit=editIssue;editIssue=function(cid,iid){ISSUE_TYPES.splice(0,ISSUE_TYPES.length,...SERVICE_TYPES);originalServiceEdit(cid,iid)};
 window.addEventListener('load',()=>{const previousRenderClients=renderClients;renderClients=function(q=''){ISSUE_TYPES.splice(0,ISSUE_TYPES.length,...SERVICE_TYPES);previousRenderClients(q);cleanupServiceLabels()};const previousRenderAll=renderAll;renderAll=function(){ISSUE_TYPES.splice(0,ISSUE_TYPES.length,...SERVICE_TYPES);previousRenderAll();cleanupServiceLabels()};renderAll();cleanupServiceLabels();const root=document.getElementById('expedientes');if(root)new MutationObserver(cleanupServiceLabels).observe(root,{childList:true,subtree:true})},{once:true});
 
 
-/* Vista de clientes con servicios activos que tienen cargo, pagados o pendientes. */
-(function(){
- const BILLING_FILTER='Cobranza y pagos';
- const BILLING_BUTTON='data-billing-payments';
- const originalTypeFilterPanel=typeFilterPanel;
- const originalSetIssueTypeFilter=setIssueTypeFilter;
- const originalRenderClients=renderClients;
- const originalCleanup=cleanupServiceLabels;
- const hasCharge=i=>i?.active!==false&&Number(i.servicePrice||i.total||0)>0;
- const chargedIssues=c=>(c.issues||[]).filter(hasCharge);
- const countCharged=()=>allIssues().filter(hasCharge).length;
- function addBillingButton(root=document){
-  const panel=root.querySelector('#expedientes .type-filters')||root.querySelector('.type-filters');
-  if(!panel)return;
-  let btn=panel.querySelector('['+BILLING_BUTTON+']');
-  if(!btn){
-   btn=document.createElement('button');
-   btn.type='button';btn.className='type-filter';btn.setAttribute(BILLING_BUTTON,'1');
-   panel.appendChild(btn);
-   btn.addEventListener('click',()=>setIssueTypeFilter(BILLING_FILTER));
-  }
-  btn.classList.toggle('active',issueTypeFilter===BILLING_FILTER);
-  btn.style.cssText='--type:#ca8a04;--type-bg:#fff9db;--type-ink:#854d0e';
-  const label='<strong>💰 Cobranza y pagos</strong><small>'+countCharged()+' servicios</small>';
-  if(btn.innerHTML!==label)btn.innerHTML=label;
- }
- typeFilterPanel=function(){
-  const html=originalTypeFilterPanel();
-  return html.replace('</div></div>','<button class="type-filter" '+BILLING_BUTTON+'="1" style="--type:#ca8a04;--type-bg:#fff9db;--type-ink:#854d0e" onclick="setIssueTypeFilter(\''+BILLING_FILTER+'\')"><strong>💰 Cobranza y pagos</strong><small>'+countCharged()+' servicios</small></button></div></div>');
- };
- setIssueTypeFilter=function(type){
-  issueTypeFilter=type;
-  renderClients(document.getElementById('clientSearch')?.value||'');
- };
- renderClients=function(q=''){
-  if(issueTypeFilter!==BILLING_FILTER)return originalRenderClients(q);
-  const selected=issueTypeFilter;
-  issueTypeFilter='Todos';
-  originalRenderClients(q);
-  issueTypeFilter=selected;
-  addBillingButton();
-  const list=document.querySelector('#expedientes .list');
-  if(!list)return;
-  let visible=0;
-  list.querySelectorAll('.card.client').forEach(card=>{
-   const opener=card.querySelector('button[onclick^="openClient("]');
-   const id=opener?.getAttribute('onclick')?.match(/openClient\('([^']+)'\)/)?.[1];
-   const client=id&&state.clients.find(c=>c.id===id);
-   const services=client?chargedIssues(client):[];
-   if(!client||!services.length){card.remove();return}
-   visible++;
-   card.querySelectorAll('.exr-service').forEach(el=>el.remove());
-   const heading=card.querySelector('.exr-section-title');
-   if(heading)heading.textContent='Servicios con cargo activos · '+services.length;
-   const notes=card.querySelector('.exr-client-notes');
-   const markup=services.map(i=>exrService(client,i)).join('');
-   if(notes)notes.insertAdjacentHTML('beforebegin',markup);
-   else card.insertAdjacentHTML('beforeend',markup);
-  });
-  const title=document.querySelector('#expedientes .section-title h2');
-  const total=document.querySelector('#expedientes .section-title .muted');
-  if(title)title.textContent='Clientes con servicios con cargo activos';
-  if(total)total.textContent=visible+' cliente'+(visible===1?'':'s');
-  addBillingButton();
- };
- cleanupServiceLabels=function(){
-  const alreadyIncluded=SERVICE_TYPES.includes(BILLING_FILTER);
-  if(!alreadyIncluded)SERVICE_TYPES.push(BILLING_FILTER);
-  originalCleanup();
-  if(!alreadyIncluded)SERVICE_TYPES.pop();
-  addBillingButton();
- };
- addBillingButton();
-})();
+
+// La vista de cobranza muestra únicamente servicios activos con importe.
+const billingBaseCardMarkup=exrCardMarkup;
+exrCardMarkup=function(c){
+ if(issueTypeFilter!=='Cobranza y pagos')return billingBaseCardMarkup(c);
+ return billingBaseCardMarkup({...c,issues:(c.issues||[]).filter(hasActiveServiceCharge)});
+};
