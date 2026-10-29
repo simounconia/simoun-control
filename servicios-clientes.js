@@ -207,7 +207,10 @@ window.addEventListener('load',()=>{const previousRenderClients=renderClients;re
   addBillingButton();
  };
  cleanupServiceLabels=function(){
+  const alreadyIncluded=SERVICE_TYPES.includes(BILLING_FILTER);
+  if(!alreadyIncluded)SERVICE_TYPES.push(BILLING_FILTER);
   originalCleanup();
+  if(!alreadyIncluded)SERVICE_TYPES.pop();
   addBillingButton();
  };
  addBillingButton();
