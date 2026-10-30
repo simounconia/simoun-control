@@ -22,13 +22,12 @@ const JORNADA_DEFAULTS = [
   'Imprimir el reporte para el jefe y marcar acciones con el inge (pasar por IA, sin repeticiones y ahorrando espacio)',
   'Tomar agua: 500 ml'
 ];
-const JORNADA_VERSION = 2;
+const JORNADA_VERSION = 3;
 function jornadaData(){
   if(!state.jornada) state.jornada={tasks:[],routines:JORNADA_DEFAULTS.map((title,i)=>({id:'rutina-'+i,title})),routineDone:{},events:[],reports:[],routineVersion:JORNADA_VERSION};
   state.jornada.tasks ||= []; state.jornada.routines ||= []; state.jornada.routineDone ||= {}; state.jornada.events ||= []; state.jornada.reports ||= [];
   if((state.jornada.routineVersion||0)<JORNADA_VERSION){
-    const custom=state.jornada.routines.filter(r=>r.custom);
-    state.jornada.routines=JORNADA_DEFAULTS.map((title,i)=>({id:'rutina-'+i,title})).concat(custom);
+    state.jornada.routines=JORNADA_DEFAULTS.map((title,i)=>({id:'rutina-'+i,title}));
     state.jornada.routineDone={};
     state.jornada.routineVersion=JORNADA_VERSION;
   }
