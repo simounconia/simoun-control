@@ -60,23 +60,8 @@ function renderJornada(){
         <div class="j-routines">${j.routines.map(r=>`<label class="j-routine ${done[r.id]?'is-done':''}"><input type="checkbox" ${done[r.id]?'checked':''} onchange="toggleJRoutine('${r.id}',this.checked)"><span>${jesc(r.title)}</span>${r.custom?'<span class="j-custom-tag">personalizada</span>':''}</label>`).join('')}</div>
         <form class="j-add-routine" onsubmit="addJRoutine(event)"><input name="title" required placeholder="Agregar paso a la rutina"><button class="btn secondary">Añadir</button></form>
       </section>
-      <section class="card j-card"><div class="j-heading"><div><span class="j-icon">🗓️</span><h3>Eventos y citas</h3></div><span class="j-count">${events.length} próximos</span></div>
-        <form class="j-form" onsubmit="addJEvent(event)">
-          <label class="field"><span>Evento</span><input name="title" required placeholder="Ej. Visita para cotizar / llamada"></label>
-          <div class="row"><label class="field"><span>Fecha</span><input name="date" type="date" value="${day}" required></label><label class="field"><span>Hora o ventana</span><input name="window" placeholder="Ej. 10 a 12"></label></div>
-          <div class="row"><label class="field"><span>Cliente</span><input name="client" placeholder="Opcional"></label><label class="field"><span>Confirmación</span><select name="confirmed"><option value="pendiente">Por confirmar</option><option value="cliente">Confirmado por cliente</option><option value="inge">Confirmado con el inge</option></select></label></div>
-          <button class="btn">+ Agendar evento</button>
-        </form>
-        <div class="j-items">${events.length?events.map(e=>`<article class="j-event"><div class="j-event-date"><strong>${e.date?new Date(e.date+'T12:00:00').getDate():'—'}</strong><small>${e.date?new Date(e.date+'T12:00:00').toLocaleDateString('es-MX',{month:'short'}):''}</small></div><div class="j-item-text"><strong>${jesc(e.title)}</strong><small>${jesc(e.client||'Sin cliente')}${e.window?' · '+jesc(e.window):''}</small><span class="j-status ${e.confirmed==='cliente'?'ok':e.confirmed==='inge'?'blue':''}">${e.confirmed==='cliente'?'✓ Cliente confirmó':e.confirmed==='inge'?'✓ Inge confirmó':'Pendiente de confirmar'}</span></div><button class="btn sm secondary" onclick="completeJEvent('${e.id}')">Realizado</button><button class="j-x" aria-label="Eliminar" onclick="deleteJEvent('${e.id}')">×</button></article>`).join(''):'<div class="j-empty">Agenda aquí llamadas, citas y ventanas de atención.</div>'}</div>
-      </section>
-      <section class="card j-card j-report"><div class="j-heading"><div><span class="j-icon">📸</span><h3>Reporte del inge</h3></div><span class="j-count">${j.reports.filter(r=>!r.checklist||!r.before||!r.after).length} por completar</span></div>
-        <p class="muted">Prepara en un toque la solicitud y registra qué se hizo, las fotos y lo que quedó pendiente.</p>
-        <form class="j-form" onsubmit="addJReport(event)">
-          <div class="row"><label class="field"><span>Cliente</span><input name="client" required placeholder="Nombre del cliente"></label><label class="field"><span>Trabajo realizado</span><input name="work" required placeholder="Ej. Revisión de cámaras"></label></div>
-          <button class="btn">+ Abrir reporte de trabajo</button>
-        </form>
-        <div class="j-items">${j.reports.length?j.reports.slice().reverse().map(r=>`<article class="j-report-item"><div class="j-report-top"><div><strong>${jesc(r.client)}</strong><small>${jesc(r.work)} · ${jornadaDate(r.date)}</small></div><button class="btn sm light" onclick="copyJReport('${r.id}')">Copiar solicitud para el inge</button></div><div class="j-receipts"><label><input type="checkbox" ${r.checklist?'checked':''} onchange="toggleJReport('${r.id}','checklist',this.checked)"> Checklist recibido</label><label><input type="checkbox" ${r.before?'checked':''} onchange="toggleJReport('${r.id}','before',this.checked)"> Foto del antes</label><label><input type="checkbox" ${r.after?'checked':''} onchange="toggleJReport('${r.id}','after',this.checked)"> Foto del después</label></div><div class="row"><label class="field"><span>¿Qué se realizó?</span><textarea id="jdone-${r.id}" placeholder="Detalle breve">${jesc(r.doneText||'')}</textarea></label><label class="field"><span>¿Qué quedó pendiente y quién lo atenderá?</span><textarea id="jpending-${r.id}" placeholder="Pendiente y responsable">${jesc(r.pendingText||'')}</textarea></label></div><div class="j-report-actions"><button class="btn sm secondary" onclick="saveJReport('${r.id}')">Guardar avances</button><button class="btn sm danger" onclick="deleteJReport('${r.id}')">Eliminar reporte</button></div></article>`).join(''):'<div class="j-empty">Al terminar un trabajo, abre aquí su reporte y copia la solicitud para el inge.</div>'}</div>
-      </section>
+
+
     </div>`;
 }
 function addJTask(e){e.preventDefault();const f=new FormData(e.currentTarget);jornadaData().tasks.unshift({id:uid(),title:f.get('title').trim(),type:f.get('type'),date:f.get('date'),note:f.get('note').trim(),done:false,createdAt:new Date().toISOString()});save()}
