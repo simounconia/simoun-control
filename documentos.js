@@ -11,7 +11,7 @@ function docPrefix(kind){return kind==='quote'?'COT':'REM'}
 function docList(kind){return kind==='quote'?docStore().quotes:docStore().remissions}
 function docNextFolio(kind){
   const prefix=docPrefix(kind)+'-'+new Date().getFullYear()+'-';
-  const max=docList(kind).reduce((n,d)=>{const m=String(d.folio||'').match(new RegExp('^'+prefix+'(\\\\d+)$'));return m?Math.max(n,Number(m[1])):n},0);
+  const max=docList(kind).reduce((n,d)=>{const m=String(d.folio||'').match(new RegExp('^'+prefix+'(\\d+)$'));return m?Math.max(n,Number(m[1])):n},0);
   return prefix+String(max+1).padStart(4,'0');
 }
 function docInput(name,label,value,placeholder,type){
@@ -144,7 +144,7 @@ function docPublicHTML(d,kind){
     'body{font:14px Arial,sans-serif;color:#17283c;margin:36px auto;max-width:850px;padding:0 24px}header{display:flex;justify-content:space-between;border-bottom:3px solid #0b2c55;padding-bottom:16px}h1{color:#0b2c55;margin:0}h2{color:#164a78}.muted{color:#58697c}.folio{text-align:right;font-size:16px;font-weight:bold}.parties{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:22px 0}.party h3{margin:0 0 7px;color:#164a78}p{line-height:1.45;margin:4px 0}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{text-align:left;padding:9px 7px;border-bottom:1px solid #dce4ef}th{background:#eef3f8}.totals{margin:12px 0 18px auto;max-width:300px}.totals div{display:flex;justify-content:space-between;padding:5px}.grand{border-top:2px solid #0b2c55;font-size:16px;color:#0b2c55}.option{margin:24px 0;page-break-inside:avoid}.notes{border:1px solid #dce4ef;border-radius:8px;padding:12px;margin-top:22px;white-space:pre-wrap}@media print{body{margin:0 auto;padding:0 10mm}}@media(max-width:600px){.parties{grid-template-columns:1fr}body{padding:0 14px}}'+
     '</style></head><body><header><div><h1>'+esc(s.name||'SIMOUN')+'</h1><p>'+(s.legalName?esc(s.legalName)+'<br>':'')+(s.rfc?'RFC: '+esc(s.rfc)+'<br>':'')+(s.address?esc(s.address)+'<br>':'')+(s.phone?esc(s.phone)+'<br>':'')+(s.email?esc(s.email):'')+'</p></div><div class="folio">'+esc(title.toUpperCase())+'<br>'+esc(d.folio)+'<p class="muted">Fecha: '+esc(fmt(d.date))+'</p></div></header>'+
     '<div class="parties"><div class="party"><h3>Cliente</h3><p><b>'+esc(c.name||'')+'</b><br>'+(c.company?esc(c.company)+'<br>':'')+(c.rfc?'RFC: '+esc(c.rfc)+'<br>':'')+(c.contact?esc(c.contact)+'<br>':'')+(c.phone?esc(c.phone)+'<br>':'')+(c.email?esc(c.email)+'<br>':'')+esc(c.address||'')+'</p></div></div>'+
-    opts+(d.notes?'<div class="notes"><b>Notas</b><br>'+esc(d.notes).replace(/\\n/g,'<br>')+'</div>':'')+'<p class="muted" style="margin-top:30px">Gracias por su preferencia · '+esc(s.name||'SIMOUN')+'</p></body></html>';
+    opts+(d.notes?'<div class="notes"><b>Notas</b><br>'+esc(d.notes).replace(/\n/g,'<br>')+'</div>':'')+'<p class="muted" style="margin-top:30px">Gracias por su preferencia · '+esc(s.name||'SIMOUN')+'</p></body></html>';
 }
 function docFind(kind,id){return docList(kind).find(x=>x.id===id)}
 function docDownload(kind,id){
