@@ -233,7 +233,7 @@ function docRenderPurchaseList(){
   const list=(state.purchases||[]).filter(p=>[p.productName,p.model,p.supplier,p.availability,p.client?.name,p.client?.company,p.note].some(v=>String(v||'').toLocaleLowerCase('es-MX').includes(q)));
   root.innerHTML=list.length?list.map(p=>{
     const price=docPurchaseCurrency(p.cost,p.currency),converted=p.currency==='USD'?'<small class="purchase-converted">≈ '+docPurchaseCurrency(p.costMXN,'MXN')+' MXN · TC '+Number(p.exchangeRate).toFixed(4)+'</small>':'';
-    return '<article class="purchase-item"><div class="purchase-item-head"><div><strong>'+esc(p.productName||'Producto')+'</strong>'+(p.model?'<span>Modelo: '+esc(p.model)+'</span>':'')+'</div><button class="btn sm danger" type="button" onclick="docDeletePurchase(\\''+p.id+'\\')">Borrar</button></div>'+
+    return '<article class="purchase-item"><div class="purchase-item-head"><div><strong>'+esc(p.productName||'Producto')+'</strong>'+(p.model?'<span>Modelo: '+esc(p.model)+'</span>':'')+'</div><button class="btn sm danger" type="button" onclick="docDeletePurchase(\''+p.id+'\')">Borrar</button></div>'+
       '<div class="purchase-price">'+price+converted+'</div><div class="purchase-meta"><span><b>Proveedor:</b> '+esc(p.supplier||'Sin dato')+'</span><span><b>Disponibilidad:</b> '+esc(p.availability||'Por confirmar')+'</span><span><b>Cliente:</b> '+esc(p.client?.name||'Sin dato')+(p.client?.company?' · '+esc(p.client.company):'')+'</span><span><b>Consultado:</b> '+esc(new Date(p.createdAt).toLocaleDateString('es-MX'))+'</span></div>'+
       (p.note?'<div class="purchase-note"><b>Nota:</b> '+esc(p.note)+'</div>':'')+'</article>';
   }).join(''):'<div class="empty">'+(q?'No encontré productos con esa búsqueda.':'Aún no hay opciones guardadas.')+'</div>';
