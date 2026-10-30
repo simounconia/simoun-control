@@ -1,16 +1,37 @@
 const JORNADA_DEFAULTS = [
-  'Revisar pendientes y retroalimentación de clientes',
-  'Confirmar trabajos del día, ventana de atención y cliente',
-  'Pasar al inge la información y prioridades del día',
-  'Atender llamadas y actualizar expedientes',
-  'Preparar y dar seguimiento a cotizaciones',
-  'Revisar llamadas, cobros y seguimientos pendientes',
-  'Al terminar cada trabajo, pedir checklist y fotos antes/después',
-  'Limpiar y dejar ordenado el local'
+  'Abrir el local',
+  'Saludar en persona o por WhatsApp',
+  'Dejar mis cosas en el cajón con llave',
+  'Prender la computadora',
+  'Revisar los mensajes y las citas del día',
+  'Generar la ficha, el pendiente y el registro en el sistema y el pizarrón',
+  'Cerrar trabajos anteriores y pagos con el inge; actualizar el sistema, el registro y el pizarrón',
+  'Gestionar con el inge el reporte para el jefe (impreso y actualizado desde el día anterior)',
+  'Pasar al inge los trabajos pendientes para cotizar, comprar, agendar y/o resolver (del día anterior y los generados en la mañana)',
+  'Tomar agua: 500 ml',
+  'Limpiar el local',
+  'Tomar breaks Pomodoro',
+  'Ir a comer con Pinky; preguntarle si dejo abierto o cerrado y anotarlo',
+  'Atención al cliente y gestión',
+  'Actualizar papelería contable: facturas realizadas, recibidas y estado de cuenta',
+  'Tomar agua: 500 ml',
+  'Cobranza: cuentas por cobrar, pagadas parcialmente, pagadas y sin cobro; fecha de seguimiento y facturación, remisión o nota foliada',
+  'Tomar agua: 500 ml',
+  'Monitoreo: realizar cobros y actualizar la base de datos',
+  'Dejar actualizado el sistema SIMOUN al momento',
+  'Imprimir el reporte para el jefe y marcar acciones con el inge (pasar por IA, sin repeticiones y ahorrando espacio)',
+  'Tomar agua: 500 ml'
 ];
+const JORNADA_VERSION = 2;
 function jornadaData(){
-  if(!state.jornada) state.jornada={tasks:[],routines:JORNADA_DEFAULTS.map((title,i)=>({id:'rutina-'+i,title})),routineDone:{},events:[],reports:[]};
+  if(!state.jornada) state.jornada={tasks:[],routines:JORNADA_DEFAULTS.map((title,i)=>({id:'rutina-'+i,title})),routineDone:{},events:[],reports:[],routineVersion:JORNADA_VERSION};
   state.jornada.tasks ||= []; state.jornada.routines ||= []; state.jornada.routineDone ||= {}; state.jornada.events ||= []; state.jornada.reports ||= [];
+  if((state.jornada.routineVersion||0)<JORNADA_VERSION){
+    const custom=state.jornada.routines.filter(r=>r.custom);
+    state.jornada.routines=JORNADA_DEFAULTS.map((title,i)=>({id:'rutina-'+i,title})).concat(custom);
+    state.jornada.routineDone={};
+    state.jornada.routineVersion=JORNADA_VERSION;
+  }
   if(!state.jornada.routines.length) state.jornada.routines=JORNADA_DEFAULTS.map((title,i)=>({id:'rutina-'+i,title}));
   return state.jornada;
 }
