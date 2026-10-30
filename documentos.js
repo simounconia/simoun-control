@@ -1,8 +1,9 @@
 /* Cotizaciones y remisiones descargables */
-const DOC_COMPANY_DEFAULT={name:'SIMOUN',legalName:'',rfc:'',address:'',phone:'',email:''};
+const DOC_COMPANY_DEFAULT={name:'SIMOUN',phone:'',whatsapp:'',email:''};
 function docStore(){
   state.commercialDocs ||= {company:{...DOC_COMPANY_DEFAULT},quotes:[],remissions:[]};
-  state.commercialDocs.company ||= {...DOC_COMPANY_DEFAULT};
+  const oldCompany=state.commercialDocs.company||{};
+  state.commercialDocs.company={name:oldCompany.name||'SIMOUN',phone:oldCompany.phone||'',whatsapp:oldCompany.whatsapp||'',email:oldCompany.email||''};
   state.commercialDocs.quotes ||= []; state.commercialDocs.remissions ||= [];
   return state.commercialDocs;
 }
@@ -20,19 +21,17 @@ function docInput(name,label,value,placeholder,type){
 function docCompanyForm(){
   const c=docStore().company;
   return '<details class="doc-company"><summary>Datos de SIMOUN para los documentos</summary><p class="muted">Completa estos datos una vez; se reutilizarán en los siguientes documentos.</p><form onsubmit="docSaveCompany(event)">'+
-    '<div class="row">'+docInput('name','Nombre comercial',c.name||'SIMOUN','SIMOUN')+docInput('legalName','Razón social',c.legalName,'Razón social registrada')+'</div>'+
-    '<div class="row">'+docInput('rfc','RFC',c.rfc,'RFC de SIMOUN')+docInput('phone','Teléfono',c.phone,'Teléfono de contacto')+'</div>'+
-    '<div class="row">'+docInput('email','Correo',c.email,'Correo de contacto','email')+docInput('address','Dirección',c.address,'Domicilio de SIMOUN')+'</div>'+
+    '<div class="row">'+docInput('name','Nombre comercial',c.name||'SIMOUN','SIMOUN')+docInput('phone','Teléfono',c.phone,'Teléfono de contacto')+'</div>'+
+    '<div class="row">'+docInput('whatsapp','WhatsApp',c.whatsapp,'WhatsApp de SIMOUN')+docInput('email','Correo',c.email,'Correo de contacto','email')+'</div>'+
     '<button class="btn secondary" type="submit">Guardar datos de SIMOUN</button></form></details>';
 }
 function docClientOptions(){
   return '<option value="">Capturar cliente manualmente</option>'+state.clients.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name||'Sin nombre')+(c.company?' · '+esc(c.company):'')+'</option>').join('');
 }
 function docClientFields(){
-  return '<div class="row">'+docInput('clientName','Cliente','', 'Nombre o razón social')+docInput('clientCompany','Empresa','','Empresa')+'</div>'+
-    '<div class="row">'+docInput('clientRFC','RFC','','RFC del cliente')+docInput('clientContact','Contacto','','Persona de contacto')+'</div>'+
-    '<div class="row">'+docInput('clientPhone','Teléfono','','Teléfono')+docInput('clientEmail','Correo','','Correo','email')+'</div>'+
-    '<label class="field"><span>Dirección del cliente</span><textarea name="clientAddress" placeholder="Domicilio del cliente"></textarea></label>';
+  return '<div class="row">'+docInput('clientName','Cliente','', 'Nombre o razón social')+docInput('projectName','Nombre del proyecto (opcional)','','Proyecto')+'</div>'+
+    '<div class="row">'+docInput('clientContact','Contacto','','Persona de contacto')+docInput('clientPhone','Teléfono','','Teléfono de contacto')+'</div>'+
+    '<div class="row">'+docInput('clientWhatsApp','WhatsApp','','WhatsApp del cliente')+docInput('clientEmail','Correo','','Correo de contacto','email')+'</div>';
 }
 function docLineRow(){
   return '<div class="doc-line" data-line><input data-description placeholder="Producto o servicio" aria-label="Producto o servicio"><input data-qty type="number" min="0.01" step="0.01" value="1" aria-label="Cantidad"><input data-price type="number" min="0" step="0.01" placeholder="Precio neto unitario" aria-label="Precio neto unitario"><button class="btn sm danger" type="button" onclick="docRemoveLine(this)" aria-label="Quitar renglón">×</button></div>';
@@ -43,7 +42,7 @@ function docOptionCard(n){
     '<div class="doc-lines-head"><strong>Conceptos</strong><span>Captura los precios antes de IVA.</span></div><div data-lines>'+docLineRow()+'</div><button class="btn sm secondary" type="button" onclick="docAddLine(this)">+ Agregar concepto</button></article>';
 }
 function docItems(kind){
-  return kind==='quote'?'<div class="doc-option-list" id="quoteOptions">'+docOptionCard(1)+docOptionCard(2)+'</div><button class="btn secondary" type="button" onclick="docAddOption()">+ Agregar otra opción</button>':
+  return kind==='quote'?'<div class="doc-option-list" id="quoteOptions">'+docOptionCard(1)+'</div><button class="btn secondary" type="button" onclick="docAddOption()">+ Agregar otra opción</button>':
     '<div class="doc-lines-head"><strong>Conceptos de la remisión</strong><span>Captura los precios antes de IVA.</span></div><div class="doc-remit-lines" data-lines>'+docLineRow()+'</div><button class="btn secondary" type="button" onclick="docAddLine(this)">+ Agregar concepto</button>';
 }
 function docForm(kind){
@@ -68,15 +67,15 @@ function renderQuotes(){docRender('quote')}
 function renderRemissions(){docRender('remission')}
 function docSaveCompany(e){
   e.preventDefault();const f=new FormData(e.currentTarget),c=docStore().company;
-  ['name','legalName','rfc','address','phone','email'].forEach(k=>c[k]=String(f.get(k)||'').trim());
+  ['name','phone','whatsapp','email'].forEach(k=>c[k]=String(f.get(k)||'').trim());
   if(!c.name)c.name='SIMOUN';save();
 }
 function docFillClient(kind,select){
   const c=state.clients.find(x=>x.id===select.value);if(!c)return;
   const form=document.getElementById(kind==='quote'?'quoteForm':'remitForm');if(!form)return;
   const set=(key,value)=>{if(form.elements[key])form.elements[key].value=value||''};
-  set('clientName',c.name);set('clientCompany',c.company);set('clientContact',c.contact);
-  set('clientPhone',c.phone||c.whatsapp);set('clientAddress',c.address);set('clientRFC',c.rfc||c.taxId||'');set('clientEmail',c.email||'');
+  set('clientName',c.name);set('projectName',c.projectName);set('clientContact',c.contact);
+  set('clientPhone',c.phone);set('clientWhatsApp',c.whatsapp);set('clientEmail',c.email||'');
 }
 function docAddLine(button){
   const form=button.closest('form'),holder=button.parentElement.querySelector('[data-lines]')||form.querySelector('.doc-remit-lines');
@@ -92,8 +91,8 @@ function docAddOption(){
 }
 function docRemoveOption(button){
   const holder=document.getElementById('quoteOptions');
-  if(holder&&holder.querySelectorAll('[data-option]').length>2)button.closest('[data-option]').remove();
-  else alert('La cotización debe conservar al menos dos opciones.');
+  if(holder&&holder.querySelectorAll('[data-option]').length>1)button.closest('[data-option]').remove();
+  else alert('La cotización debe conservar al menos una opción.');
 }
 function docReadLines(holder){
   return Array.from(holder.querySelectorAll('[data-line]')).map(line=>({
@@ -104,13 +103,13 @@ function docReadLines(holder){
 }
 function docCreate(e,kind){
   e.preventDefault();const form=e.currentTarget,fd=new FormData(form),quote=kind==='quote';
-  const client={name:String(fd.get('clientName')||'').trim(),company:String(fd.get('clientCompany')||'').trim(),rfc:String(fd.get('clientRFC')||'').trim(),
-    contact:String(fd.get('clientContact')||'').trim(),phone:String(fd.get('clientPhone')||'').trim(),email:String(fd.get('clientEmail')||'').trim(),address:String(fd.get('clientAddress')||'').trim()};
+  const client={name:String(fd.get('clientName')||'').trim(),projectName:String(fd.get('projectName')||'').trim(),
+    contact:String(fd.get('clientContact')||'').trim(),phone:String(fd.get('clientPhone')||'').trim(),whatsapp:String(fd.get('clientWhatsApp')||'').trim(),email:String(fd.get('clientEmail')||'').trim()};
   if(!client.name){alert('Escribe el nombre del cliente o razón social.');return}
   let options=[];
   if(quote){
     const cards=Array.from(form.querySelectorAll('[data-option]'));
-    if(cards.length<2){alert('La cotización debe incluir al menos dos opciones.');return}
+    if(cards.length<1){alert('La cotización debe incluir al menos una opción.');return}
     options=cards.map((card,i)=>({title:card.querySelector('[name="optionTitle"]').value.trim()||'Opción '+(i+1),
       description:card.querySelector('[name="optionDescription"]').value.trim(),lines:docReadLines(card.querySelector('[data-lines]'))}));
     if(options.some(x=>!x.lines.length)){alert('Agrega al menos un concepto en cada opción.');return}
@@ -121,7 +120,7 @@ function docCreate(e,kind){
   }
   const docs=docStore(),company=docs.company;
   const companyForm=document.querySelector('#'+(quote?'cotizaciones':'remisiones')+' .doc-company form');
-  if(companyForm){const cf=new FormData(companyForm);['name','legalName','rfc','address','phone','email'].forEach(k=>company[k]=String(cf.get(k)||'').trim());if(!company.name)company.name='SIMOUN'}
+  if(companyForm){const cf=new FormData(companyForm);['name','phone','whatsapp','email'].forEach(k=>company[k]=String(cf.get(k)||'').trim());if(!company.name)company.name='SIMOUN'}
   const d={id:uid(),folio:docNextFolio(kind),date:String(fd.get('date')||docDate()),createdAt:new Date().toISOString(),
     simoun:{...company},client,options,includeIVA:fd.get('includeIVA')==='on',notes:String(fd.get('notes')||'').trim(),privateNote:String(fd.get('privateNote')||'').trim(),
     invoiceStatus:quote?'':String(fd.get('invoiceStatus')||''),invoiceFolio:quote?'':String(fd.get('invoiceFolio')||'').trim(),
@@ -154,8 +153,8 @@ function docPublicHTML(d,kind){
   const s=d.simoun||{},c=d.client||{};
   return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title+' '+d.folio)+'</title><style>'+
     'body{font:14px Arial,sans-serif;color:#17283c;margin:36px auto;max-width:850px;padding:0 24px}header{display:flex;justify-content:space-between;border-bottom:3px solid #0b2c55;padding-bottom:16px}h1{color:#0b2c55;margin:0}h2{color:#164a78}.muted{color:#58697c}.folio{text-align:right;font-size:16px;font-weight:bold}.parties{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:22px 0}.party h3{margin:0 0 7px;color:#164a78}p{line-height:1.45;margin:4px 0}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{text-align:left;padding:9px 7px;border-bottom:1px solid #dce4ef}th{background:#eef3f8}.totals{margin:12px 0 18px auto;max-width:300px}.totals div{display:flex;justify-content:space-between;padding:5px}.grand{border-top:2px solid #0b2c55;font-size:16px;color:#0b2c55}.option{margin:24px 0;page-break-inside:avoid}.notes{border:1px solid #dce4ef;border-radius:8px;padding:12px;margin-top:22px;white-space:pre-wrap}@media print{body{margin:0 auto;padding:0 10mm}}@media(max-width:600px){.parties{grid-template-columns:1fr}body{padding:0 14px}}'+
-    '</style></head><body><header><div><h1>'+esc(s.name||'SIMOUN')+'</h1><p>'+(s.legalName?esc(s.legalName)+'<br>':'')+(s.rfc?'RFC: '+esc(s.rfc)+'<br>':'')+(s.address?esc(s.address)+'<br>':'')+(s.phone?esc(s.phone)+'<br>':'')+(s.email?esc(s.email):'')+'</p></div><div class="folio">'+esc(title.toUpperCase())+'<br>'+esc(d.folio)+'<p class="muted">Fecha: '+esc(fmt(d.date))+'</p></div></header>'+
-    '<div class="parties"><div class="party"><h3>Cliente</h3><p><b>'+esc(c.name||'')+'</b><br>'+(c.company?esc(c.company)+'<br>':'')+(c.rfc?'RFC: '+esc(c.rfc)+'<br>':'')+(c.contact?esc(c.contact)+'<br>':'')+(c.phone?esc(c.phone)+'<br>':'')+(c.email?esc(c.email)+'<br>':'')+esc(c.address||'')+'</p></div></div>'+
+    '</style></head><body><header><div><h1>'+esc(s.name||'SIMOUN')+'</h1><p>'+(s.phone?'Teléfono: '+esc(s.phone)+'<br>':'')+(s.whatsapp?'WhatsApp: '+esc(s.whatsapp)+'<br>':'')+(s.email?'Correo: '+esc(s.email):'')+'</p></div><div class="folio">'+esc(title.toUpperCase())+'<br>'+esc(d.folio)+'<p class="muted">Fecha: '+esc(fmt(d.date))+'</p></div></header>'+
+    '<div class="parties"><div class="party"><h3>Cliente</h3><p><b>'+esc(c.name||'')+'</b><br>'+(c.projectName?'Proyecto: '+esc(c.projectName)+'<br>':'')+(c.contact?'Contacto: '+esc(c.contact)+'<br>':'')+(c.phone?'Teléfono: '+esc(c.phone)+'<br>':'')+(c.whatsapp?'WhatsApp: '+esc(c.whatsapp)+'<br>':'')+(c.email?'Correo: '+esc(c.email):'')+'</p></div></div>'+
     opts+(d.notes?'<div class="notes"><b>Notas</b><br>'+esc(d.notes).replace(/\n/g,'<br>')+'</div>':'')+'<p class="muted" style="margin-top:30px">Gracias por su preferencia · '+esc(s.name||'SIMOUN')+'</p></body></html>';
 }
 function docFind(kind,id){return docList(kind).find(x=>x.id===id)}
