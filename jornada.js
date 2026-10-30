@@ -37,7 +37,7 @@ function jornadaData(){
 function jornadaToday(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)}
 function jesc(v=''){return esc(v)}
 function jornadaDate(v){if(!v)return 'Sin fecha';return new Date(v+'T12:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'short'})}
-let jornadaNoteViewDate='',jornadaNoteCalendarDay='';
+let jornadaNoteViewDate='',jornadaNoteCalendarDay='',jornadaNoteSaveTimer=null;
 function jornadaLongDate(v){return new Date(v+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
 function saveJDailyNote(shouldRender=true){
   const j=jornadaData(),date=jornadaNoteViewDate||jornadaToday(),text=document.getElementById('jDailyNote')?.value||'';
@@ -45,13 +45,22 @@ function saveJDailyNote(shouldRender=true){
   if(text.trim())j.dailyNotes[date]=text;else delete j.dailyNotes[date];
   if(shouldRender)save();
 }
+function jornadaDraftNote(text){
+  const j=jornadaData(),date=jornadaNoteViewDate||jornadaToday();
+  j.dailyNotes ||= {};
+  if(text.trim())j.dailyNotes[date]=text;else delete j.dailyNotes[date];
+  state._updatedAt=new Date().toISOString();
+  localStorage.setItem(LS,JSON.stringify(state));
+  clearTimeout(jornadaNoteSaveTimer);
+  jornadaNoteSaveTimer=setTimeout(()=>window.SimounSync?.queuePush(state),700);
+}
 function jornadaSetNoteDate(date){
   if(!date)return;
   saveJDailyNote(false);
   jornadaNoteViewDate=date;
   save();
 }
-function jornadaShowTodayNote(){jornadaNoteViewDate=jornadaToday();saveJDailyNote(false);save();}
+function jornadaShowTodayNote(){saveJDailyNote(false);jornadaNoteViewDate=jornadaToday();save();}
 function renderJornada(){
   const root=document.getElementById('jornada'); if(!root)return;
   const j=jornadaData(),day=jornadaToday(),done=j.routineDone[day]||{};
@@ -83,7 +92,7 @@ function renderJornada(){
         <p class="muted">Anota situaciones, acuerdos o detalles que quieras recordar aunque no vayan en el sistema. Cada fecha conserva su propia nota; al abrir un día nuevo tendrás un espacio nuevo.</p>
         <div class="j-note-controls"><label class="field"><span>Fecha de la nota</span><input type="date" value="${noteDay}" onchange="jornadaSetNoteDate(this.value)"></label><button type="button" class="btn secondary" onclick="jornadaShowTodayNote()">Ir a hoy</button></div>
         <div class="j-note-date">${jornadaLongDate(noteDay)}</div>
-        <label class="field"><span>¿Qué pasó hoy?</span><textarea id="jDailyNote" placeholder="Escribe aquí lo que quieras dejar registrado para este día.">${jesc(noteText)}</textarea></label>
+        <label class="field"><span>¿Qué pasó hoy?</span><textarea id="jDailyNote" oninput="jornadaDraftNote(this.value)" placeholder="Escribe aquí lo que quieras dejar registrado para este día.">${jesc(noteText)}</textarea></label>
         <div class="j-note-actions"><button type="button" class="btn" onclick="saveJDailyNote()">✓ Guardar nota de este día</button><span class="muted">Se guarda asociada a la fecha seleccionada.</span></div>
         ${noteDates.length?'<div class="j-note-archive"><strong>Notas guardadas por día</strong><div class="j-note-days">'+noteDates.map(d=>'<button type="button" class="btn sm '+(d===noteDay?'':'secondary')+'" onclick="jornadaSetNoteDate(\''+d+'\')">'+jesc(jornadaLongDate(d))+'</button>').join('')+'</div></div>':''}
       </section>
