@@ -168,9 +168,92 @@ function docPrint(kind,id){
   const w=window.open('','_blank');if(!w){alert('Permite la ventana emergente para imprimir o guardar el documento como PDF.');return}
   w.document.open();w.document.write(docPublicHTML(d,kind));w.document.close();setTimeout(()=>{w.focus();w.print()},500);
 }
+let purchaseSearchQuery='';
+function docPurchaseClientOptions(){
+  return '<option value="">Selecciona un cliente</option>'+state.clients.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name||'Sin nombre')+(c.company?' · '+esc(c.company):'')+'</option>').join('')+'<option value="__new__">Cliente nuevo</option>';
+}
+function renderPurchases(){
+  const root=document.getElementById('compras');if(!root)return;
+  state.purchases ||= [];
+  root.innerHTML='<div class="purchase-hero"><div><span>SIMOUN · CONSULTAS DE PRODUCTO</span><h1>Compras</h1><p>Guarda precios, modelos y proveedores para encontrar después las opciones que ya revisaste.</p></div><div class="purchase-count">'+state.purchases.length+'<small>opciones guardadas</small></div></div>'+
+    '<div class="purchase-layout"><section class="card purchase-form-card"><form id="purchaseForm" class="purchase-form" onsubmit="docSavePurchase(event)"><h2>Guardar producto u opción</h2>'+
+    '<div class="row"><label class="field"><span>Nombre del producto</span><input name="productName" required placeholder="Ej. Cámara IP"></label><label class="field"><span>Modelo (opcional)</span><input name="model" placeholder="Modelo o número de parte"></label></div>'+
+    '<div class="row"><label class="field"><span>Costo</span><input name="cost" type="number" min="0" step="0.01" required placeholder="0.00"></label><label class="field"><span>Moneda</span><select name="currency" onchange="docPurchaseToggleCurrency()"><option value="MXN">Pesos mexicanos (MXN)</option><option value="USD">Dólares (USD)</option></select></label></div>'+
+    '<label class="field purchase-rate" hidden><span>Tipo de cambio (pesos por dólar)</span><input name="exchangeRate" type="number" min="0.0001" step="0.0001" placeholder="Ej. 18.50"></label>'+
+    '<div class="row"><label class="field"><span>Proveedor</span><input name="supplier" required placeholder="Nombre de la tienda o proveedor"></label><label class="field"><span>Disponibilidad</span><select name="availability"><option>Por confirmar</option><option>Con existencias</option><option>Disponible sobre pedido</option><option>Sin existencias</option></select></label></div>'+
+    '<label class="field"><span>¿Para qué cliente es?</span><select id="purchaseClientChoice" name="clientChoice" required onchange="docPurchaseToggleClient()">'+docPurchaseClientOptions()+'</select></label>'+
+    '<label class="field purchase-new-client" hidden><span>Nombre del cliente nuevo</span><input name="newClientName" placeholder="Nombre o empresa del cliente"></label>'+
+    '<label class="field"><span>Nota</span><textarea name="note" placeholder="Detalles, diferencias entre opciones o qué revisar"></textarea></label>'+
+    '<button class="btn purchase-submit" type="submit">Guardar opción de compra</button></form></section>'+
+    '<section class="card purchase-list-card"><div class="purchase-list-head"><div><h2>Productos guardados</h2><span class="muted">Puedes guardar cada modelo o proveedor como una opción separada.</span></div><span class="badge blue">'+state.purchases.length+' registros</span></div>'+
+    '<input class="search purchase-search" value="'+esc(purchaseSearchQuery)+'" oninput="docFilterPurchases(this.value)" placeholder="Buscar producto, modelo, proveedor o cliente">'+
+    '<div id="purchaseResults" class="purchase-results"></div></section></div>';
+  docRenderPurchaseList();
+}
+function docPurchaseToggleCurrency(){
+  const form=document.getElementById('purchaseForm');if(!form)return;
+  const usd=form.elements.currency.value==='USD',row=form.querySelector('.purchase-rate');
+  row.hidden=!usd;form.elements.exchangeRate.required=usd;
+}
+function docPurchaseToggleClient(){
+  const form=document.getElementById('purchaseForm');if(!form)return;
+  const isNew=form.elements.clientChoice.value==='__new__',field=form.querySelector('.purchase-new-client');
+  field.hidden=!isNew;form.elements.newClientName.required=isNew;
+}
+function docSavePurchase(e){
+  e.preventDefault();const form=e.currentTarget,fd=new FormData(form),choice=String(fd.get('clientChoice')||'');
+  let client;
+  if(choice==='__new__'){
+    const name=String(fd.get('newClientName')||'').trim();
+    if(!name){alert('Escribe el nombre del cliente nuevo.');return}
+    client={id:'',name,isNew:true};
+  }else{
+    const c=state.clients.find(x=>x.id===choice);
+    if(!c){alert('Selecciona un cliente de la lista o elige Cliente nuevo.');return}
+    client={id:c.id,name:c.name||'Sin nombre',company:c.company||'',isNew:false};
+  }
+  const currency=String(fd.get('currency')||'MXN'),cost=Number(fd.get('cost')),exchangeRate=currency==='USD'?Number(fd.get('exchangeRate')):null;
+  if(!Number.isFinite(cost)||cost<0){alert('Captura un costo válido.');return}
+  if(currency==='USD'&&(!Number.isFinite(exchangeRate)||exchangeRate<=0)){alert('Indica el tipo de cambio en pesos por dólar.');return}
+  state.purchases ||= [];
+  state.purchases.unshift({id:uid(),productName:String(fd.get('productName')||'').trim(),model:String(fd.get('model')||'').trim(),
+    cost,currency,exchangeRate,costMXN:currency==='USD'?cost*exchangeRate:cost,supplier:String(fd.get('supplier')||'').trim(),
+    availability:String(fd.get('availability')||'Por confirmar'),client,note:String(fd.get('note')||'').trim(),createdAt:new Date().toISOString()});
+  purchaseSearchQuery='';
+  save();
+  alert('La opción de compra quedó guardada para consultarla después.');
+}
+function docFilterPurchases(value){
+  purchaseSearchQuery=value||'';
+  docRenderPurchaseList();
+}
+function docRenderPurchaseList(){
+  const root=document.getElementById('purchaseResults');if(!root)return;
+  const q=purchaseSearchQuery.trim().toLocaleLowerCase('es-MX');
+  const list=(state.purchases||[]).filter(p=>[p.productName,p.model,p.supplier,p.availability,p.client?.name,p.client?.company,p.note].some(v=>String(v||'').toLocaleLowerCase('es-MX').includes(q)));
+  root.innerHTML=list.length?list.map(p=>{
+    const price=docPurchaseCurrency(p.cost,p.currency),converted=p.currency==='USD'?'<small class="purchase-converted">≈ '+docPurchaseCurrency(p.costMXN,'MXN')+' MXN · TC '+Number(p.exchangeRate).toFixed(4)+'</small>':'';
+    return '<article class="purchase-item"><div class="purchase-item-head"><div><strong>'+esc(p.productName||'Producto')+'</strong>'+(p.model?'<span>Modelo: '+esc(p.model)+'</span>':'')+'</div><button class="btn sm danger" type="button" onclick="docDeletePurchase(\\''+p.id+'\\')">Borrar</button></div>'+
+      '<div class="purchase-price">'+price+converted+'</div><div class="purchase-meta"><span><b>Proveedor:</b> '+esc(p.supplier||'Sin dato')+'</span><span><b>Disponibilidad:</b> '+esc(p.availability||'Por confirmar')+'</span><span><b>Cliente:</b> '+esc(p.client?.name||'Sin dato')+(p.client?.company?' · '+esc(p.client.company):'')+'</span><span><b>Consultado:</b> '+esc(new Date(p.createdAt).toLocaleDateString('es-MX'))+'</span></div>'+
+      (p.note?'<div class="purchase-note"><b>Nota:</b> '+esc(p.note)+'</div>':'')+'</article>';
+  }).join(''):'<div class="empty">'+(q?'No encontré productos con esa búsqueda.':'Aún no hay opciones guardadas.')+'</div>';
+}
+function docPurchaseCurrency(amount,currency){
+  return new Intl.NumberFormat('es-MX',{style:'currency',currency:currency==='USD'?'USD':'MXN'}).format(Number(amount)||0);
+}
+function docDeletePurchase(id){
+  const p=(state.purchases||[]).find(x=>x.id===id);if(!p)return;
+  if(!confirmDelete('¿Borrar la opción guardada de '+(p.productName||'este producto')+'?'))return;
+  state.purchases=state.purchases.filter(x=>x.id!==id);save();
+}
+function purchaseStyle(){
+  const st=document.createElement('style');
+  st.textContent='#compras .purchase-hero{display:flex;justify-content:space-between;align-items:center;gap:15px;background:linear-gradient(135deg,#0b2c55,#246b91);color:#fff;border-radius:18px;padding:20px;margin-bottom:14px}#compras .purchase-hero h1{margin:5px 0;font-size:24px}#compras .purchase-hero p{margin:0;opacity:.85}#compras .purchase-hero span{font-size:11px;letter-spacing:.12em;font-weight:800}.purchase-count{font-size:24px;font-weight:850;text-align:center;min-width:100px}.purchase-count small{display:block;font-size:11px;font-weight:600}.purchase-layout{display:grid;grid-template-columns:minmax(290px,.8fr) minmax(0,1.2fr);gap:14px;align-items:start}.purchase-form{display:grid;gap:11px}.purchase-form h2,.purchase-list-head h2{margin:0 0 3px}.purchase-form .field{display:grid;gap:5px}.purchase-form .field>span{font-size:12px;color:var(--muted);font-weight:750}.purchase-form input,.purchase-form select,.purchase-form textarea{width:100%;min-height:42px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff}.purchase-form textarea{min-height:75px;resize:vertical}.purchase-form [hidden]{display:none!important}.purchase-submit{min-height:48px}.purchase-list-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}.purchase-list-head .muted{font-size:12px}.purchase-search{width:100%;margin-bottom:10px}.purchase-results{display:grid;gap:9px}.purchase-item{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fbfcfe;display:grid;gap:8px}.purchase-item-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.purchase-item-head>div{display:grid;gap:3px}.purchase-item-head strong{font-size:15px;color:#0b2c55}.purchase-item-head span{font-size:12px;color:var(--muted)}.purchase-price{font-size:18px;font-weight:850;color:#164a78}.purchase-converted{display:block;font-size:11px;font-weight:600;color:var(--muted)}.purchase-meta{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:12px;color:#34475c}.purchase-note{font-size:13px;background:#fff;border-radius:8px;padding:8px;white-space:pre-wrap}.purchase-item .btn{min-height:36px}@media(max-width:850px){.purchase-layout{grid-template-columns:1fr}}@media(max-width:600px){#compras .purchase-hero{padding:15px}#compras .purchase-hero h1{font-size:21px}.purchase-item{padding:10px}}';
+  document.head.appendChild(st);
+}
 function docStyle(){
   const s=document.createElement('style');
   s.textContent='#cotizaciones .doc-hero,#remisiones .doc-hero{display:flex;justify-content:space-between;align-items:center;gap:15px;background:linear-gradient(135deg,#0b2c55,#246b91);color:#fff;border-radius:18px;padding:20px;margin-bottom:14px}#cotizaciones .doc-hero h1,#remisiones .doc-hero h1{margin:5px 0;font-size:24px}#cotizaciones .doc-hero p,#remisiones .doc-hero p{margin:0;opacity:.85}#cotizaciones .doc-hero>div:first-child>span,#remisiones .doc-hero>div:first-child>span{font-size:11px;letter-spacing:.12em;font-weight:800}.doc-total{font-size:24px;font-weight:850;text-align:center;min-width:90px}.doc-total small{display:block;font-size:11px;font-weight:600;color:#fff}.doc-company{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:14px}.doc-company summary{font-weight:800;cursor:pointer;color:var(--brand)}.doc-company form{display:grid;gap:10px;margin-top:12px}.doc-company p{margin:8px 0}.doc-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);gap:14px;align-items:start}.doc-form{display:grid;gap:12px}.doc-form-title,.doc-option-head,.doc-history-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.doc-form-title h2,.doc-history-head h2{margin:0}.doc-subhead{font-weight:850;color:#164a78;border-bottom:1px solid var(--line);padding-bottom:6px;margin-top:4px}.doc-form .field{display:grid;gap:5px}.doc-form .field>span{font-size:12px;color:var(--muted);font-weight:750}.doc-form textarea{min-height:76px;padding:10px;border:1px solid var(--line);border-radius:10px;resize:vertical}.doc-option{border:1px solid var(--line);border-radius:13px;background:#f9fbfd;padding:12px;margin:9px 0;display:grid;gap:10px}.doc-option-head strong{color:#164a78}.doc-lines-head{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:13px;margin:8px 0}.doc-lines-head span{color:var(--muted);font-size:11px}.doc-line{display:grid;grid-template-columns:minmax(120px,1fr) 90px minmax(130px,170px) auto;gap:7px;margin:7px 0}.doc-line input{width:100%;min-width:0;padding:9px;border:1px solid var(--line);border-radius:9px}.doc-private{border:1px dashed #d59b46;background:#fffaf1;padding:10px;border-radius:11px}.doc-private>span{color:#855000!important}.doc-create{min-height:48px}.doc-history{display:grid;gap:10px}.doc-history-head{margin-bottom:4px}.doc-history-card{display:grid;gap:10px;border:1px solid var(--line);border-radius:12px;padding:11px;background:#fbfcfe}.doc-history-info{display:grid;gap:3px;min-width:0}.doc-history-info>strong{color:#0b2c55}.doc-history-info>span{font-size:13px}.doc-history-info small{font-size:11px;color:var(--muted)}.doc-private-badge{color:#855000!important}.doc-history-card .split-actions{justify-content:flex-start}.doc-remittance-control{display:grid;gap:8px;padding:10px;background:#fffaf1;border:1px solid #f0dfbb;border-radius:11px}.doc-remittance-control>strong{color:#855000}.doc-remittance-control textarea{min-height:55px;padding:9px;border:1px solid var(--line);border-radius:9px;resize:vertical}@media(max-width:850px){.doc-layout{grid-template-columns:1fr}}@media(max-width:600px){#cotizaciones .doc-hero,#remisiones .doc-hero{padding:15px}#cotizaciones .doc-hero h1,#remisiones .doc-hero h1{font-size:21px}.doc-line{grid-template-columns:1fr 1fr auto}.doc-line input:first-child{grid-column:1/-1}.doc-line .btn{min-height:40px}.doc-history-card{gap:8px}}';
   document.head.appendChild(s);
 }
-docStyle();renderQuotes();renderRemissions();
+docStyle();purchaseStyle();renderQuotes();renderRemissions();renderPurchases();
