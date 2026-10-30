@@ -37,14 +37,33 @@ function jornadaData(){
 function jornadaToday(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)}
 function jesc(v=''){return esc(v)}
 function jornadaDate(v){if(!v)return 'Sin fecha';return new Date(v+'T12:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'short'})}
+let jornadaNoteViewDate='',jornadaNoteCalendarDay='';
+function jornadaLongDate(v){return new Date(v+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
+function saveJDailyNote(shouldRender=true){
+  const j=jornadaData(),date=jornadaNoteViewDate||jornadaToday(),text=document.getElementById('jDailyNote')?.value||'';
+  j.dailyNotes ||= {};
+  if(text.trim())j.dailyNotes[date]=text;else delete j.dailyNotes[date];
+  if(shouldRender)save();
+}
+function jornadaSetNoteDate(date){
+  if(!date)return;
+  saveJDailyNote(false);
+  jornadaNoteViewDate=date;
+  save();
+}
+function jornadaShowTodayNote(){jornadaNoteViewDate=jornadaToday();saveJDailyNote(false);save();}
 function renderJornada(){
   const root=document.getElementById('jornada'); if(!root)return;
   const j=jornadaData(),day=jornadaToday(),done=j.routineDone[day]||{};
+  j.dailyNotes ||= {};
+  if(jornadaNoteCalendarDay!==day){jornadaNoteCalendarDay=day;jornadaNoteViewDate=day}
+  if(!jornadaNoteViewDate)jornadaNoteViewDate=day;
+  const noteDay=jornadaNoteViewDate,noteText=j.dailyNotes[noteDay]||'';
+  const noteDates=Object.keys(j.dailyNotes).filter(d=>j.dailyNotes[d]?.trim()).sort((a,b)=>b.localeCompare(a));
   const open=j.tasks.filter(x=>!x.done).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
-  const events=j.events.filter(x=>!x.done).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
   const checked=j.routines.filter(x=>done[x.id]).length;
   root.innerHTML=`
-    <div class="j-hero"><div><span class="j-kicker">SIMOUN · ORGANIZACIÓN DEL DÍA</span><h2>Jornada de trabajo</h2><p>Captura rápido lo que te pidan, organiza la rutina y deja listo el reporte para el inge.</p></div><div class="j-date"><label for="jDay">Hoy</label><strong>${new Date(day+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'})}</strong><small>${open.length} pendiente${open.length===1?'':'s'} · ${events.length} evento${events.length===1?'':'s'}</small></div></div>
+    <div class="j-hero"><div><span class="j-kicker">SIMOUN · ORGANIZACIÓN DEL DÍA</span><h2>Jornada de trabajo</h2><p>Captura rápido lo que te pidan y organiza el trabajo del día.</p></div><div class="j-date"><label for="jDay">Hoy</label><strong>${new Date(day+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'})}</strong><small>${open.length} pendiente${open.length===1?'':'s'}</small></div></div>
     <div class="j-layout">
       <section class="card j-card j-quick"><div class="j-heading"><div><span class="j-icon">⚡</span><h3>Captura rápida</h3></div><span class="j-count">${open.length} abiertos</span></div>
         <p class="muted">Anota una llamada, cotización, tarea de cliente o cualquier cosa que te pidan.</p>
@@ -60,8 +79,14 @@ function renderJornada(){
         <div class="j-routines">${j.routines.map(r=>`<label class="j-routine ${done[r.id]?'is-done':''}"><input type="checkbox" ${done[r.id]?'checked':''} onchange="toggleJRoutine('${r.id}',this.checked)"><span>${jesc(r.title)}</span>${r.custom?'<span class="j-custom-tag">personalizada</span>':''}</label>`).join('')}</div>
         <form class="j-add-routine" onsubmit="addJRoutine(event)"><input name="title" required placeholder="Agregar paso a la rutina"><button class="btn secondary">Añadir</button></form>
       </section>
-
-
+      <section class="card j-card j-daily-note"><div class="j-heading"><div><span class="j-icon">📝</span><h3>Notas del día</h3></div><span class="j-count">${noteDates.length} día${noteDates.length===1?'':'s'} guardado${noteDates.length===1?'':'s'}</span></div>
+        <p class="muted">Anota situaciones, acuerdos o detalles que quieras recordar aunque no vayan en el sistema. Cada fecha conserva su propia nota; al abrir un día nuevo tendrás un espacio nuevo.</p>
+        <div class="j-note-controls"><label class="field"><span>Fecha de la nota</span><input type="date" value="${noteDay}" onchange="jornadaSetNoteDate(this.value)"></label><button type="button" class="btn secondary" onclick="jornadaShowTodayNote()">Ir a hoy</button></div>
+        <div class="j-note-date">${jornadaLongDate(noteDay)}</div>
+        <label class="field"><span>¿Qué pasó hoy?</span><textarea id="jDailyNote" placeholder="Escribe aquí lo que quieras dejar registrado para este día.">${jesc(noteText)}</textarea></label>
+        <div class="j-note-actions"><button type="button" class="btn" onclick="saveJDailyNote()">✓ Guardar nota de este día</button><span class="muted">Se guarda asociada a la fecha seleccionada.</span></div>
+        ${noteDates.length?'<div class="j-note-archive"><strong>Notas guardadas por día</strong><div class="j-note-days">'+noteDates.map(d=>'<button type="button" class="btn sm '+(d===noteDay?'':'secondary')+'" onclick="jornadaSetNoteDate(\''+d+'\')">'+jesc(jornadaLongDate(d))+'</button>').join('')+'</div></div>':''}
+      </section>
     </div>`;
 }
 function addJTask(e){e.preventDefault();const f=new FormData(e.currentTarget);jornadaData().tasks.unshift({id:uid(),title:f.get('title').trim(),type:f.get('type'),date:f.get('date'),note:f.get('note').trim(),done:false,createdAt:new Date().toISOString()});save()}
@@ -88,6 +113,7 @@ jornadaStyle.textContent=`
 #jornada .j-routines{display:grid;gap:6px}#jornada .j-routine{display:flex;align-items:center;gap:10px;padding:9px 10px;background:#f7f9fc;border-radius:10px;font-size:13px}#jornada .j-routine input,#jornada .j-receipts input{width:18px;height:18px;accent-color:#18794e}#jornada .j-routine span{flex:1}#jornada .j-routine.is-done span{text-decoration:line-through;color:var(--muted)}#jornada .j-add-routine{display:flex;gap:8px;margin-top:10px}#jornada .j-add-routine input{flex:1;min-width:0;padding:10px;border:1px solid var(--line);border-radius:10px}
 #jornada .j-event-date{flex:none;width:42px;height:48px;border-radius:10px;background:#eef4fa;display:grid;place-content:center;text-align:center;color:var(--brand)}#jornada .j-event-date strong{font-size:18px}#jornada .j-event-date small{text-transform:capitalize;font-size:10px}#jornada .j-status{font-size:10px;color:#a15c00}#jornada .j-status.ok{color:#18794e}#jornada .j-status.blue{color:#146b96}
 #jornada .j-report{grid-column:1/-1}#jornada .j-report-item{padding:12px;border:1px solid var(--line);border-radius:12px;background:#fbfcfe}#jornada .j-report-top{display:flex;justify-content:space-between;gap:8px;align-items:center}#jornada .j-report-top>div{display:grid;gap:3px}#jornada .j-receipts{display:flex;gap:14px;flex-wrap:wrap;padding:10px 0;font-size:12px}#jornada .j-receipts label{display:flex;align-items:center;gap:6px}#jornada .j-report-actions{display:flex;gap:8px;margin-top:8px}
+#jornada .j-daily-note{grid-column:1/-1}#jornada .j-note-controls{display:flex;align-items:end;gap:9px;flex-wrap:wrap;margin:10px 0}#jornada .j-note-controls .field{min-width:190px;flex:1}#jornada .j-note-date{text-transform:capitalize;font-weight:800;color:#164a78;margin:8px 0}#jornada #jDailyNote{width:100%;min-height:190px;padding:12px;border:1px solid var(--line);border-radius:12px;resize:vertical;background:#fff;color:var(--ink)}#jornada .j-note-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:9px}#jornada .j-note-archive{border-top:1px solid var(--line);margin-top:14px;padding-top:12px;display:grid;gap:8px}#jornada .j-note-days{display:flex;gap:7px;flex-wrap:wrap}#jornada .j-note-days .btn{white-space:normal;text-align:left}
 @media(max-width:720px){#jornada .j-layout{grid-template-columns:1fr}#jornada .j-report{grid-column:auto}#jornada .j-hero{display:grid;padding:16px}#jornada .j-date{text-align:left}#jornada .j-report-top{align-items:flex-start;display:grid}#jornada .j-event{flex-wrap:wrap}}
 `;
 document.head.appendChild(jornadaStyle);
