@@ -72,10 +72,18 @@
     return data;
   }
 
-  function signOut(){
+  async function signOut(){
+    let allSessionsClosed=false;
+    try{
+      if(await ensureSession()){
+        const r=await fetch(base()+'/auth/v1/logout?scope=global',{method:'POST',headers:headers(true)});
+        allSessionsClosed=r.ok;
+      }
+    }catch{}
     localStorage.removeItem(TOKEN_KEY);
     access={role:'',displayName:'',email:'',workspace:WORKSPACE};adminUidCache='';
     setMeta({status:'offline',lastError:'',authorizedEmail:''});refreshStatus();dispatch('simoun-access-change');dispatch('simoun-activity-change');
+    return allSessionsClosed;
   }
 
   async function loadAccess(strict=false){
@@ -209,8 +217,8 @@
       <div class="notice"><strong>SIMOUN privado</strong><br>El acceso está limitado a la cuenta administradora.</div>
       ${s.user?`
         <div class="card" style="margin-top:12px"><strong>${displayName()}</strong><div class="muted">${currentEmail()}</div><div style="margin-top:8px"><span class="badge ${isAdmin()?'blue':'green'}">${roleLabel()||'Sin permiso'}</span></div></div>
-        <div class="toolbar" style="margin-top:12px"><button class="btn" id="syncNowBtn">Sincronizar ahora</button><button class="btn secondary" id="signOutBtn">Cerrar sesión</button></div>`:
-      `<div class="row" style="margin-top:12px"><div class="field"><label>Correo</label><input id="syncEmail" type="email" autocomplete="username"></div><div class="field"><label>Contraseña</label><input id="syncPass" type="password" autocomplete="current-password"></div></div><div class="toolbar" style="margin-top:10px"><button class="btn" id="signInBtn">Iniciar sesión</button></div><div class="muted" style="font-size:12px">Inicia sesión con la cuenta administradora.</div>`}
+        <div class="toolbar" style="margin-top:12px"><button class="btn" id="syncNowBtn">Sincronizar ahora</button><button class="btn secondary" id="signOutBtn">Cerrar todas las sesiones</button></div>`:
+      `<div class="row" style="margin-top:12px"><div class="field"><label>Correo</label><input id="syncEmail" type="email" autocomplete="username"></div><div class="field"><label>Contraseña</label><input id="syncPass" type="password" autocomplete="new-password"></div></div><div class="toolbar" style="margin-top:10px"><button class="btn" id="signInBtn">Iniciar sesión</button></div><div class="muted" style="font-size:12px">Inicia sesión con la cuenta administradora.</div>`}
       <div id="syncError" class="muted" style="margin-top:10px;color:#b42318">${meta().lastError||''}</div>`;
     d.showModal();
 
@@ -218,7 +226,10 @@
       const email=document.getElementById('syncEmail').value.trim(),pass=document.getElementById('syncPass').value;
       try{await signIn(email,pass);await syncNow();openSettings('Sesión iniciada en SIMOUN.')}catch(e){setMeta({status:'error',lastError:String(e.message||e)});openSettings('No se pudo iniciar sesión.')}
     });
-    document.getElementById('signOutBtn')?.addEventListener('click',()=>{signOut();openSettings('Sesión cerrada.')});
+    document.getElementById('signOutBtn')?.addEventListener('click',async()=>{
+      const allSessionsClosed=await signOut();
+      openSettings(allSessionsClosed?'Sesión cerrada en este equipo y en los demás dispositivos.':'Sesión cerrada en este equipo. No se pudo confirmar el cierre de las demás sesiones; conéctate a internet e inténtalo de nuevo.');
+    });
     document.getElementById('syncNowBtn')?.addEventListener('click',async()=>{await syncNow();openSettings('Sincronización finalizada.')});
   }
 
