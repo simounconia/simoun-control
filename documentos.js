@@ -152,9 +152,9 @@ function docHistoryCard(d,kind){
   const internal=quote?'':'<small class="doc-private-badge">Pago: '+esc(d.paymentStatus||'Sin registrar')+(d.paymentDate?' · Fecha de pago: '+esc(fmt(d.paymentDate)):'')+(d.invoiceStatus?' · Factura: '+esc(d.invoiceStatus):'')+'</small>';
   return '<article class="doc-history-card"><div class="doc-history-info"><strong>'+esc(d.folio)+'</strong><span>'+esc(d.client.name||'')+(d.client.company?' · '+esc(d.client.company):'')+'</span><small>'+esc(fmt(d.date))+' · '+(quote?d.options.length+' opciones':'Remisión')+' · '+summary+'</small>'+
     (d.privateNote?'<small class="doc-private-badge">Nota privada guardada en SIMOUN</small>':'')+internal+'</div><div class="split-actions">'+
-    (quote?'':'<button class="btn sm secondary" onclick="docEditRemission(\\''+d.id+'\\')">Editar remisión</button>')+
-    '<button class="btn sm secondary" onclick="docDownload(\\''+kind+'\\',\\''+d.id+'\\')">Descargar archivo</button><button class="btn sm light" onclick="docPrint(\\''+kind+'\\',\\''+d.id+'\\')">Imprimir / Guardar PDF</button>'+
-    '<button class="btn sm danger" onclick="docDelete(\\''+kind+'\\',\\''+d.id+'\\')">Borrar</button></div></article>';
+    (quote?'':'<button class="btn sm secondary" onclick="docEditRemission(\''+d.id+'\')">Editar remisión</button>')+
+    '<button class="btn sm secondary" onclick="docDownload(\''+kind+'\',\''+d.id+'\')">Descargar archivo</button><button class="btn sm light" onclick="docPrint(\''+kind+'\',\''+d.id+'\')">Imprimir / Guardar PDF</button>'+
+    '<button class="btn sm danger" onclick="docDelete(\''+kind+'\',\''+d.id+'\')">Borrar</button></div></article>';
 }
 function docDelete(kind,id){
   const d=docFind(kind,id);if(!d)return;
