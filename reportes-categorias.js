@@ -61,8 +61,29 @@
       .report-client-card .exr-service{break-inside:avoid;page-break-inside:avoid}
       .report-client-card .exr-print-note{white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;border:1px solid #dce4ef;border-radius:9px;padding:9px;min-height:24px;font-size:13px}
       .report-empty{padding:30px;text-align:center;color:#61738b;background:#fff;border-radius:14px}
-      @page{margin:12mm}
-      @media print{body{padding:0;background:#fff}.report-heading{margin:0 0 12px}.report-client-card{box-shadow:none;margin-bottom:10px}.report-client-card+.report-client-card{break-before:page;page-break-before:always}}
+      @page{size:auto;margin:7mm}
+      @media print{
+        body{padding:0!important;background:#fff!important;font-size:9pt!important;line-height:1.18!important}
+        .report-heading{margin:0 0 6px!important}.report-heading h1{font-size:15pt!important;margin:0 0 2px!important}.report-heading p{font-size:8pt!important}
+        .report-sheet{max-width:none!important}
+        .report-client-card{padding:6px!important;margin:0 0 6px!important;border-radius:5px!important;box-shadow:none!important;break-before:auto!important;page-break-before:auto!important}
+        .report-client-card+.report-client-card{break-before:auto!important;page-break-before:auto!important}
+        .exr-card-head{padding-bottom:4px!important;gap:5px!important}.exr-card-head strong{font-size:11pt!important}
+        .exr-contact{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:3px!important;padding:4px 0!important}
+        .exr-field{padding:4px!important;border-radius:4px!important}
+        .exr-field small{font-size:7pt!important;margin-bottom:1px!important}
+        .exr-field strong,.exr-field a{font-size:8pt!important;line-height:1.15!important}
+        .exr-section-title{font-size:9pt!important;margin:5px 0 3px!important}
+        .exr-service{padding:6px!important;margin:4px 0!important;border-radius:6px!important;break-inside:avoid-page;page-break-inside:avoid}
+        .exr-service-head{gap:4px!important}.exr-service-head .btn{display:none!important}
+        .type-label,.badge{padding:2px 4px!important;font-size:7pt!important}
+        .exr-details{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:3px!important;margin-top:4px!important}
+        .exr-copy{font-size:8pt!important;line-height:1.2!important;margin-top:4px!important}
+        .exr-finance{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:3px!important;margin-top:4px!important}
+        .exr-statuses{padding:3px 4px!important;margin-top:4px!important;font-size:7pt!important;gap:4px!important}
+        .exr-print-note{min-height:0!important;padding:4px!important;font-size:8pt!important;line-height:1.15!important}
+        .exr-client-notes{margin-top:5px!important;padding-top:5px!important}
+      }
     `;
   }
   function allCss(){
@@ -89,6 +110,18 @@
     setTimeout(()=>URL.revokeObjectURL(url),30000);
   }
 
+  async function copyReport(type){
+    const holder=document.createElement('div');
+    holder.innerHTML=reportBody(type);
+    const text=holder.innerText.trim();
+    if(navigator.clipboard?.writeText){try{await navigator.clipboard.writeText(text);return}catch{}}
+    const field=document.createElement('textarea');
+    field.value=text;field.style.position='fixed';field.style.opacity='0';
+    document.body.appendChild(field);field.select();
+    const copied=document.execCommand('copy');field.remove();
+    if(!copied)throw new Error('No se pudo copiar');
+  }
+
   function ensureDialog(){
     let dlg=document.getElementById('categoryReportDlg');
     if(dlg)return dlg;
@@ -100,7 +133,7 @@
         <div class="field" style="margin-bottom:10px"><label>Filtrar clientes por servicio</label><select id="categoryReportType"></select></div>
         <div class="notice" style="margin-bottom:10px">El filtro selecciona qué clientes aparecen. Cada ficha incluye todos sus servicios y la información visible en Clientes.</div>
         <div id="categoryReportPreview" class="report-sheet"></div>
-        <div class="toolbar" style="margin-top:12px"><button class="btn" type="button" id="categoryPrintBtn">🖨️ Imprimir / Guardar como PDF</button><button class="btn secondary" type="button" id="categoryDownloadBtn">⬇️ Descargar ficha HTML</button></div>
+        <div class="toolbar" style="margin-top:12px"><button class="btn secondary" type="button" id="categoryCopyBtn">📋 Copiar información</button><button class="btn" type="button" id="categoryPrintBtn">🖨️ Imprimir / Guardar como PDF</button><button class="btn secondary" type="button" id="categoryDownloadBtn">⬇️ Descargar ficha HTML</button></div>
         <div id="categoryReportStatus" class="muted" role="status" aria-live="polite"></div>
       </div>`;
     document.body.appendChild(dlg);
@@ -108,6 +141,7 @@
     const refresh=()=>{preview.innerHTML=reportBody(select.value||'Todos');status.textContent=''};
     dlg.querySelector('.close').addEventListener('click',()=>dlg.close());
     select.addEventListener('change',refresh);
+    dlg.querySelector('#categoryCopyBtn').addEventListener('click',async()=>{try{await copyReport(select.value||'Todos');status.textContent='Se copió la información completa del reporte.'}catch{status.textContent='No se pudo copiar. Intenta de nuevo.'}});
     dlg.querySelector('#categoryPrintBtn').addEventListener('click',()=>openPrint(select.value||'Todos'));
     dlg.querySelector('#categoryDownloadBtn').addEventListener('click',()=>{downloadReport(select.value||'Todos');status.textContent='Se descargó el archivo HTML del reporte.'});
     return dlg;
