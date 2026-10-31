@@ -7,17 +7,24 @@
   const escReport=s=>String(s??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));
   function reportTypes(){return ['Todos',...(Array.isArray(ISSUE_TYPES)?ISSUE_TYPES:[])];}
   function currentType(){try{return reportTypes().includes(issueTypeFilter)?issueTypeFilter:'Todos'}catch{return 'Todos'}}
+  function visibleReportIssues(client){
+    return (client.issues||[]).filter(i=>i.active!==false&&!['Terminado','Cancelado'].includes(i.state));
+  }
   function reportClients(type){
     return (Array.isArray(state?.clients)?state.clients:[])
-      .filter(c=>type==='Todos'||(c.issues||[]).some(i=>i.type===type))
+      .filter(c=>type==='Todos'||visibleReportIssues(c).some(i=>i.type===type))
       .slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'es'));
   }
   function reportDate(){return new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'})}
 
-  function printableCard(client){
+  function printableCard(client,type='Todos'){
+    const reportClient=type==='Todos'?client:{
+      ...client,
+      issues:visibleReportIssues(client).filter(i=>i.type===type)
+    };
     const holder=document.createElement('div');
     holder.innerHTML=typeof exrCardMarkup==='function'
-      ? '<div class="card client exr-card">'+exrCardMarkup(client)+'</div>'
+      ? '<div class="card client exr-card">'+exrCardMarkup(reportClient)+'</div>'
       : '<div class="card report-client-card"><strong>'+escReport(client.name||'Sin nombre')+'</strong></div>';
     const card=holder.firstElementChild;
     if(!card)return '';
@@ -49,7 +56,7 @@
 
   function reportBody(type){
     const clients=reportClients(type);
-    const cards=clients.map(printableCard).join('');
+    const cards=clients.map(client=>printableCard(client,type)).join('');
     return `<header class="report-heading"><h1>SIMOUN · Reporte por cliente</h1><p>Filtro de servicio: <strong>${escReport(type)}</strong> · ${clients.length} cliente${clients.length===1?'':'s'} · ${reportDate()}</p></header><main class="report-sheet">${cards||'<div class="report-empty">No hay clientes para este filtro.</div>'}</main>`;
   }
   function reportExtraCss(){
@@ -131,7 +138,7 @@
       <div class="modal-head"><strong>📋 Reporte para jefe</strong><button class="close" type="button" aria-label="Cerrar">×</button></div>
       <div class="modal-body">
         <div class="field" style="margin-bottom:10px"><label>Filtrar clientes por servicio</label><select id="categoryReportType"></select></div>
-        <div class="notice" style="margin-bottom:10px">El filtro selecciona qué clientes aparecen. Cada ficha incluye todos sus servicios y la información visible en Clientes.</div>
+        <div class="notice" style="margin-bottom:10px">El filtro muestra los clientes que tienen ese servicio y conserva sus datos; en cada ficha aparece únicamente el servicio seleccionado. “Todos” muestra todos sus servicios activos.</div>
         <div id="categoryReportPreview" class="report-sheet"></div>
         <div class="toolbar" style="margin-top:12px"><button class="btn secondary" type="button" id="categoryCopyBtn">📋 Copiar información</button><button class="btn" type="button" id="categoryPrintBtn">🖨️ Imprimir / Guardar como PDF</button><button class="btn secondary" type="button" id="categoryDownloadBtn">⬇️ Descargar ficha HTML</button></div>
         <div id="categoryReportStatus" class="muted" role="status" aria-live="polite"></div>
@@ -193,15 +200,15 @@
       @media print{body{padding:0!important;font-size:9pt!important}.report-heading{margin-bottom:6px}.compact-print-client{padding-top:5px!important}.compact-print-client .exr-contact{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
     `;
   }
-  function compactPrintableCard(client){
-    const html=printableCard(client),holder=document.createElement('div');
+  function compactPrintableCard(client,type){
+    const html=printableCard(client,type),holder=document.createElement('div');
     holder.innerHTML=html;
     const card=holder.firstElementChild;
     if(card)card.classList.add('compact-print-client');
     return card?card.outerHTML:'';
   }
   function compactReportBody(type){
-    const clients=reportClients(type),cards=clients.map(compactPrintableCard).join('');
+    const clients=reportClients(type),cards=clients.map(client=>compactPrintableCard(client,type)).join('');
     return `<header class="report-heading"><h1>SIMOUN · Reporte para jefe</h1><p>Filtro: <strong>${escReport(type)}</strong> · ${clients.length} cliente${clients.length===1?'':'s'} · ${reportDate()}</p></header><main class="report-sheet">${cards||'<div class="report-empty">No hay clientes para este filtro.</div>'}</main>`;
   }
   function compactReportDocument(type){
