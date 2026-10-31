@@ -29,8 +29,8 @@ function docNextFolio(kind){
 }
 function docIssueFolio(kind){
   const docs=docStore(),folio=docNextFolio(kind),year=new Date().getFullYear();
-  const m=folio.match(/-(\\d+)$/);
-  docs.folioCounters[kind+':'+year]=Number(m?.[1]||0);
+  const serial=Number(folio.slice(folio.lastIndexOf('-')+1));
+  docs.folioCounters[kind+':'+year]=serial;
   return folio;
 }
 function docInput(name,label,value,placeholder,type){
