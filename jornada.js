@@ -69,6 +69,16 @@ function jTaskCard(t,day,isDone){
     '<span class="j-due">'+(isDone?'✓ '+completedDate:(t.date?jornadaDate(t.date):''))+'</span>'+
     '<div class="split-actions"><button class="btn sm secondary" type="button" onclick="editJTask(\''+t.id+'\')">Editar</button><button class="j-x" type="button" aria-label="Borrar pendiente" onclick="deleteJTask(\''+t.id+'\')">×</button></div></article>';
 }
+function jRoutineRows(j,done){
+  return j.routines.map((r,index)=>{
+    const classes='j-routine'+(done[r.id]?' is-done':'');
+    return '<div class="'+classes+'"><label class="j-routine-label"><input type="checkbox" '+(done[r.id]?'checked':'')+' onchange="toggleJRoutine(\\''+r.id+'\\',this.checked)"><span>'+jesc(r.title)+'</span>'+(r.custom?'<span class="j-custom-tag">personalizada</span>':'')+'</label>'+
+      '<div class="j-routine-actions"><button type="button" class="j-routine-move" title="Mover paso arriba" aria-label="Mover '+jesc(r.title)+' arriba" '+(index===0?'disabled':'')+' onclick="moveJRoutine(\\''+r.id+'\\',-1)">↑</button>'+
+      '<button type="button" class="j-routine-move" title="Mover paso abajo" aria-label="Mover '+jesc(r.title)+' abajo" '+(index===j.routines.length-1?'disabled':'')+' onclick="moveJRoutine(\\''+r.id+'\\',1)">↓</button>'+
+      '<button type="button" class="j-routine-edit" title="Editar paso" aria-label="Editar '+jesc(r.title)+'" onclick="editJRoutine(\\''+r.id+'\\')">✎</button>'+
+      '<button type="button" class="j-routine-delete" title="Borrar paso" aria-label="Borrar '+jesc(r.title)+'" onclick="deleteJRoutine(event,\\''+r.id+'\\')">×</button></div></div>';
+  }).join('');
+}
 function renderJornada(){
   const root=document.getElementById('jornada'); if(!root)return;
   const j=jornadaData(),day=jornadaToday(),done=j.routineDone[day]||{};
@@ -95,7 +105,7 @@ function renderJornada(){
         ${completed.length?'<details class="j-completed"><summary>✓ Pendientes realizados · '+completed.length+'</summary><div class="j-items">'+completed.map(t=>jTaskCard(t,day,true)).join('')+'</div></details>':''}
       </section>
       <section class="card j-card"><div class="j-heading"><div><span class="j-icon">☑️</span><h3>Rutina diaria</h3></div><span class="j-count">${checked}/${j.routines.length}</span></div><p class="muted">Se reinicia sola cada día; tus marcas anteriores quedan guardadas.</p>
-        <div class="j-routines">${j.routines.map(r=>`<label class="j-routine ${done[r.id]?'is-done':''}"><input type="checkbox" ${done[r.id]?'checked':''} onchange="toggleJRoutine('${r.id}',this.checked)"><span>${jesc(r.title)}</span>${r.custom?'<span class="j-custom-tag">personalizada</span>':''}</label>`).join('')}</div>
+        <div class="j-routines">${jRoutineRows(j,done)}</div>
         <form class="j-add-routine" onsubmit="addJRoutine(event)"><input name="title" required placeholder="Agregar paso a la rutina"><button class="btn secondary">Añadir</button></form>
       </section>
       <section class="card j-card j-daily-note"><div class="j-heading"><div><span class="j-icon">📝</span><h3>Notas del día</h3></div><span class="j-count">${noteDates.length} día${noteDates.length===1?'':'s'} guardado${noteDates.length===1?'':'s'}</span></div>
@@ -142,7 +152,27 @@ function deleteJTask(id){
 }
 function addJRoutine(e){e.preventDefault();const f=new FormData(e.currentTarget),title=f.get('title').trim();if(!title)return;jornadaData().routines.push({id:uid(),title,custom:true});save()}
 function toggleJRoutine(id,checked){const j=jornadaData(),day=jornadaToday();j.routineDone[day] ||= {};j.routineDone[day][id]=checked;save()}
-function deleteJRoutine(e,id){e.preventDefault();e.stopPropagation();const j=jornadaData();j.routines=j.routines.filter(x=>x.id!==id);Object.values(j.routineDone).forEach(x=>delete x[id]);save()}
+function editJRoutine(id){
+  const item=jornadaData().routines.find(x=>x.id===id);if(!item)return;
+  const title=prompt('Editar paso de la rutina diaria:',item.title);
+  if(title===null)return;
+  if(!title.trim())return alert('Escribe el paso de la rutina.');
+  item.title=title.trim();save();
+}
+function moveJRoutine(id,direction){
+  const routines=jornadaData().routines,index=routines.findIndex(x=>x.id===id),target=index+direction;
+  if(index<0||target<0||target>=routines.length)return;
+  [routines[index],routines[target]]=[routines[target],routines[index]];
+  save();
+}
+function deleteJRoutine(e,id){
+  e.preventDefault();e.stopPropagation();
+  const j=jornadaData(),item=j.routines.find(x=>x.id===id);if(!item)return;
+  if(!confirmDelete('¿Borrar el paso "'+item.title+'" de la rutina diaria?'))return;
+  j.routines=j.routines.filter(x=>x.id!==id);
+  Object.values(j.routineDone).forEach(x=>delete x[id]);
+  save();
+}
 function addJEvent(e){e.preventDefault();const f=new FormData(e.currentTarget);jornadaData().events.push({id:uid(),title:f.get('title').trim(),date:f.get('date'),window:f.get('window').trim(),client:f.get('client').trim(),confirmed:f.get('confirmed'),done:false});save()}
 function completeJEvent(id){const x=jornadaData().events.find(e=>e.id===id);if(x){x.done=true;save()}}
 function deleteJEvent(id){const j=jornadaData();j.events=j.events.filter(e=>e.id!==id);save()}
@@ -158,7 +188,7 @@ jornadaStyle.textContent=`
 #jornada .j-date{min-width:180px;padding:12px 15px;border-radius:14px;background:#ffffff1c;display:grid;gap:4px;text-align:right}#jornada .j-date label,#jornada .j-date small{font-size:12px;opacity:.8}#jornada .j-date strong{text-transform:capitalize}
 #jornada .j-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}#jornada .j-card{min-width:0}#jornada .j-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}#jornada .j-heading>div{display:flex;align-items:center;gap:8px}#jornada .j-heading h3{margin:0;font-size:17px}#jornada .j-icon{font-size:20px}#jornada .j-count{font-size:11px;font-weight:800;color:#275c7e;background:#eaf3f8;border-radius:99px;padding:6px 9px}#jornada .j-form{display:grid;gap:9px;margin:12px 0}
 #jornada .j-items{display:grid;gap:8px;margin-top:12px}#jornada .j-item,#jornada .j-event{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:12px;padding:9px;background:#fff}#jornada .j-late{border-color:#f1b7af;background:#fff9f8}#jornada .j-check{flex:none;width:34px;height:34px;border:1px solid #b8d7c8;border-radius:10px;background:#edf8f2;color:#18794e;font-size:18px;font-weight:900}#jornada .j-item-text{display:grid;gap:3px;min-width:0;flex:1}#jornada .j-item-text strong{font-size:13px}#jornada .j-item-text small,#jornada .j-report-top small{color:var(--muted);font-size:11px}#jornada .j-due{white-space:nowrap;color:#a15c00;font-size:11px;font-weight:800}#jornada .j-x{flex:none;border:0;background:transparent;color:#8a98a9;font-size:20px;cursor:pointer}#jornada .j-empty{padding:14px;text-align:center;color:var(--muted);background:#f7f9fc;border-radius:12px;font-size:13px}
-#jornada .j-routines{display:grid;gap:6px}#jornada .j-routine{display:flex;align-items:center;gap:10px;padding:9px 10px;background:#f7f9fc;border-radius:10px;font-size:13px}#jornada .j-routine input,#jornada .j-receipts input{width:18px;height:18px;accent-color:#18794e}#jornada .j-routine span{flex:1}#jornada .j-routine.is-done span{text-decoration:line-through;color:var(--muted)}#jornada .j-add-routine{display:flex;gap:8px;margin-top:10px}#jornada .j-add-routine input{flex:1;min-width:0;padding:10px;border:1px solid var(--line);border-radius:10px}
+#jornada .j-routines{display:grid;gap:6px}#jornada .j-routine{display:flex;align-items:center;gap:10px;padding:9px 10px;background:#f7f9fc;border-radius:10px;font-size:13px}#jornada .j-routine input,#jornada .j-receipts input{width:18px;height:18px;accent-color:#18794e}#jornada .j-routine-label{display:flex;align-items:center;gap:10px;flex:1;min-width:0}#jornada .j-routine-label>span:first-of-type{flex:1}#jornada .j-routine-label .j-custom-tag{flex:none}#jornada .j-routine-actions{display:flex;gap:3px;flex:none}#jornada .j-routine-actions button{width:30px;height:30px;padding:0;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--brand);font-size:15px;font-weight:800;cursor:pointer}#jornada .j-routine-actions .j-routine-delete{color:var(--danger)}#jornada .j-routine-actions button:disabled{opacity:.35;cursor:not-allowed}#jornada .j-routine.is-done span{text-decoration:line-through;color:var(--muted)}#jornada .j-add-routine{display:flex;gap:8px;margin-top:10px}#jornada .j-add-routine input{flex:1;min-width:0;padding:10px;border:1px solid var(--line);border-radius:10px}
 #jornada .j-event-date{flex:none;width:42px;height:48px;border-radius:10px;background:#eef4fa;display:grid;place-content:center;text-align:center;color:var(--brand)}#jornada .j-event-date strong{font-size:18px}#jornada .j-event-date small{text-transform:capitalize;font-size:10px}#jornada .j-status{font-size:10px;color:#a15c00}#jornada .j-status.ok{color:#18794e}#jornada .j-status.blue{color:#146b96}
 #jornada .j-report{grid-column:1/-1}#jornada .j-report-item{padding:12px;border:1px solid var(--line);border-radius:12px;background:#fbfcfe}#jornada .j-report-top{display:flex;justify-content:space-between;gap:8px;align-items:center}#jornada .j-report-top>div{display:grid;gap:3px}#jornada .j-receipts{display:flex;gap:14px;flex-wrap:wrap;padding:10px 0;font-size:12px}#jornada .j-receipts label{display:flex;align-items:center;gap:6px}#jornada .j-report-actions{display:flex;gap:8px;margin-top:8px}
 #jornada .j-daily-note{grid-column:1/-1}#jornada .j-note-controls{display:flex;align-items:end;gap:9px;flex-wrap:wrap;margin:10px 0}#jornada .j-note-controls .field{min-width:190px;flex:1}#jornada .j-note-date{text-transform:capitalize;font-weight:800;color:#164a78;margin:8px 0}#jornada #jDailyNote{width:100%;min-height:190px;padding:12px;border:1px solid var(--line);border-radius:12px;resize:vertical;background:#fff;color:var(--ink)}#jornada .j-note-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:9px}#jornada .j-note-archive{border-top:1px solid var(--line);margin-top:14px;padding-top:12px;display:grid;gap:8px}#jornada .j-note-days{display:flex;gap:7px;flex-wrap:wrap}#jornada .j-note-days .btn{white-space:normal;text-align:left}
