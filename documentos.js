@@ -2,18 +2,36 @@
 const DOC_COMPANY_DEFAULT={name:'SIMOUN',phone:'',whatsapp:'',email:''};
 function docStore(){
   state.commercialDocs ||= {company:{...DOC_COMPANY_DEFAULT},quotes:[],remissions:[]};
-  const oldCompany=state.commercialDocs.company||{};
-  state.commercialDocs.company={name:oldCompany.name||'SIMOUN',phone:oldCompany.phone||'',whatsapp:oldCompany.whatsapp||'',email:oldCompany.email||''};
-  state.commercialDocs.quotes ||= []; state.commercialDocs.remissions ||= [];
-  return state.commercialDocs;
+  const docs=state.commercialDocs;
+  const oldCompany=docs.company||{};
+  docs.company={name:oldCompany.name||'SIMOUN',phone:oldCompany.phone||'',whatsapp:oldCompany.whatsapp||'',email:oldCompany.email||''};
+  docs.quotes ||= []; docs.remissions ||= [];
+  docs.folioCounters ||= {};
+  const year=new Date().getFullYear();
+  [['quote','quotes'],['remission','remissions']].forEach(([kind,listKey])=>{
+    const prefix=docPrefix(kind)+'-'+year+'-';
+    const highest=docs[listKey].reduce((max,d)=>{
+      const m=String(d.folio||'').match(new RegExp('^'+prefix+'(\\d+)$'));
+      return m?Math.max(max,Number(m[1])):max;
+    },0);
+    const key=kind+':'+year;
+    docs.folioCounters[key]=Math.max(Number(docs.folioCounters[key])||0,highest);
+  });
+  return docs;
 }
 function docDate(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)}
 function docPrefix(kind){return kind==='quote'?'COT':'REM'}
 function docList(kind){return kind==='quote'?docStore().quotes:docStore().remissions}
 function docNextFolio(kind){
-  const prefix=docPrefix(kind)+'-'+new Date().getFullYear()+'-';
-  const max=docList(kind).reduce((n,d)=>{const m=String(d.folio||'').match(new RegExp('^'+prefix+'(\\d+)$'));return m?Math.max(n,Number(m[1])):n},0);
-  return prefix+String(max+1).padStart(4,'0');
+  const year=new Date().getFullYear(),prefix=docPrefix(kind)+'-'+year+'-';
+  const key=kind+':'+year,docs=docStore();
+  return prefix+String((Number(docs.folioCounters[key])||0)+1).padStart(4,'0');
+}
+function docIssueFolio(kind){
+  const docs=docStore(),folio=docNextFolio(kind),year=new Date().getFullYear();
+  const m=folio.match(/-(\\d+)$/);
+  docs.folioCounters[kind+':'+year]=Number(m?.[1]||0);
+  return folio;
 }
 function docInput(name,label,value,placeholder,type){
   return '<label class="field"><span>'+label+'</span><input name="'+name+'" value="'+esc(value||'')+'" placeholder="'+esc(placeholder||'')+'" type="'+(type||'text')+'"></label>';
@@ -52,7 +70,7 @@ function docForm(kind){
     '<div class="doc-subhead">Datos del cliente</div>'+docClientFields()+'<div class="doc-subhead">'+(quote?'Opciones':'Conceptos')+'</div>'+docItems(kind)+
     '<label class="switch-line"><input type="checkbox" name="includeIVA"><span>Incluir IVA del 16% en el documento</span></label>'+
     '<label class="field"><span>Notas para el cliente</span><textarea name="notes" placeholder="Condiciones, vigencia o información adicional visible para el cliente"></textarea></label>'+
-    (quote?'':'<div class="doc-subhead">Control de factura y pago</div><div class="row"><label class="field"><span>Estado de factura</span><select name="invoiceStatus"><option value="">Seleccionar</option><option>No facturada</option><option>Facturada</option></select></label><label class="field"><span>Folio de factura</span><input name="invoiceFolio" placeholder="Ej. A-1234"></label></div><div class="row"><label class="field"><span>Estado de pago</span><select name="paymentStatus"><option value="">Seleccionar</option><option>Pagada</option><option>A crédito / PPD</option></select></label><label class="field"><span>Nota de facturación y complementos (privada)</span><textarea name="billingNote" placeholder="Ej. Pendiente complemento de pago, fecha o detalle de seguimiento"></textarea></label></div>')+
+    (quote?'':'<div class="doc-subhead">Control de factura y pago</div><div class="row"><label class="field"><span>Estado de factura</span><select name="invoiceStatus"><option value="">Seleccionar</option><option>No facturada</option><option>Facturada</option></select></label><label class="field"><span>Folio de factura</span><input name="invoiceFolio" placeholder="Ej. A-1234"></label></div><div class="row"><label class="field"><span>Estado de pago</span><select name="paymentStatus"><option value="">Sin registrar</option><option>Por pagar</option><option>Pagada</option><option>A crédito / PPD</option></select></label><label class="field"><span>Nota de facturación y complementos (privada)</span><textarea name="billingNote" placeholder="Ej. Pendiente complemento de pago, fecha o detalle de seguimiento"></textarea></label></div>')+
     '<label class="field doc-private"><span>Nota privada para SIMOUN</span><textarea name="privateNote" placeholder="Modelos, costo, proveedor u otros datos internos. No aparecerán en el documento descargable."></textarea></label>'+
     '<button class="btn doc-create" type="submit">Guardar '+label+' y asignar folio</button></form>';
 }
@@ -121,7 +139,7 @@ function docCreate(e,kind){
   const docs=docStore(),company=docs.company;
   const companyForm=document.querySelector('#'+(quote?'cotizaciones':'remisiones')+' .doc-company form');
   if(companyForm){const cf=new FormData(companyForm);['name','phone','whatsapp','email'].forEach(k=>company[k]=String(cf.get(k)||'').trim());if(!company.name)company.name='SIMOUN'}
-  const d={id:uid(),folio:docNextFolio(kind),date:String(fd.get('date')||docDate()),createdAt:new Date().toISOString(),
+  const d={id:uid(),folio:docIssueFolio(kind),date:String(fd.get('date')||docDate()),createdAt:new Date().toISOString(),
     simoun:{...company},client,options,includeIVA:fd.get('includeIVA')==='on',notes:String(fd.get('notes')||'').trim(),privateNote:String(fd.get('privateNote')||'').trim(),
     invoiceStatus:quote?'':String(fd.get('invoiceStatus')||''),invoiceFolio:quote?'':String(fd.get('invoiceFolio')||'').trim(),
     paymentStatus:quote?'':String(fd.get('paymentStatus')||''),billingNote:quote?'':String(fd.get('billingNote')||'').trim()};
@@ -131,17 +149,62 @@ function docSubtotal(lines){return lines.reduce((sum,x)=>sum+(Number(x.quantity)
 function docTotals(lines,iva){const subtotal=docSubtotal(lines),tax=iva?subtotal*.16:0;return{subtotal,tax,total:subtotal+tax}}
 function docHistoryCard(d,kind){
   const quote=kind==='quote',summary=quote?d.options.map((o,i)=>'Opción '+(i+1)+': '+money(docTotals(o.lines,d.includeIVA).total)).join(' · '):money(docTotals((d.options[0]||{}).lines||[],d.includeIVA).total);
-  const internal=quote?'':('<div class="doc-remittance-control"><strong>Seguimiento interno</strong><div class="row"><label class="field"><span>Factura</span><select id="rem-invoice-'+d.id+'"><option value="">Sin registrar</option><option '+(d.invoiceStatus==='No facturada'?'selected':'')+'>No facturada</option><option '+(d.invoiceStatus==='Facturada'?'selected':'')+'>Facturada</option></select></label><label class="field"><span>Folio de factura</span><input id="rem-invoice-folio-'+d.id+'" value="'+esc(d.invoiceFolio||'')+'" placeholder="Ej. A-1234"></label></div><div class="row"><label class="field"><span>Pago</span><select id="rem-payment-'+d.id+'"><option value="">Sin registrar</option><option '+(d.paymentStatus==='Pagada'?'selected':'')+'>Pagada</option><option '+(d.paymentStatus==='A crédito / PPD'?'selected':'')+'>A crédito / PPD</option></select></label><label class="field"><span>Nota de facturación o complemento (privada)</span><textarea id="rem-billing-note-'+d.id+'" placeholder="Seguimiento de complemento de pago">'+esc(d.billingNote||'')+'</textarea></label></div><button class="btn sm secondary" onclick="docSaveRemissionMeta(\''+d.id+'\')">Guardar seguimiento</button></div>');
+  const internal=quote?'':'<small class="doc-private-badge">Pago: '+esc(d.paymentStatus||'Sin registrar')+(d.paymentDate?' · Fecha de pago: '+esc(fmt(d.paymentDate)):'')+(d.invoiceStatus?' · Factura: '+esc(d.invoiceStatus):'')+'</small>';
   return '<article class="doc-history-card"><div class="doc-history-info"><strong>'+esc(d.folio)+'</strong><span>'+esc(d.client.name||'')+(d.client.company?' · '+esc(d.client.company):'')+'</span><small>'+esc(fmt(d.date))+' · '+(quote?d.options.length+' opciones':'Remisión')+' · '+summary+'</small>'+
-    (d.privateNote?'<small class="doc-private-badge">Nota privada guardada en SIMOUN</small>':'')+'</div>'+internal+'<div class="split-actions"><button class="btn sm secondary" onclick="docDownload(\''+kind+'\',\''+d.id+'\')">Descargar archivo</button><button class="btn sm light" onclick="docPrint(\''+kind+'\',\''+d.id+'\')">Imprimir / Guardar PDF</button></div></article>';
+    (d.privateNote?'<small class="doc-private-badge">Nota privada guardada en SIMOUN</small>':'')+internal+'</div><div class="split-actions">'+
+    (quote?'':'<button class="btn sm secondary" onclick="docEditRemission(\\''+d.id+'\\')">Editar remisión</button>')+
+    '<button class="btn sm secondary" onclick="docDownload(\\''+kind+'\\',\\''+d.id+'\\')">Descargar archivo</button><button class="btn sm light" onclick="docPrint(\\''+kind+'\\',\\''+d.id+'\\')">Imprimir / Guardar PDF</button>'+
+    '<button class="btn sm danger" onclick="docDelete(\\''+kind+'\\',\\''+d.id+'\\')">Borrar</button></div></article>';
 }
-function docSaveRemissionMeta(id){
-  const d=docFind('remission',id);if(!d)return;
-  d.invoiceStatus=document.getElementById('rem-invoice-'+id)?.value||'';
-  d.invoiceFolio=document.getElementById('rem-invoice-folio-'+id)?.value.trim()||'';
-  d.paymentStatus=document.getElementById('rem-payment-'+id)?.value||'';
-  d.billingNote=document.getElementById('rem-billing-note-'+id)?.value.trim()||'';
+function docDelete(kind,id){
+  const d=docFind(kind,id);if(!d)return;
+  const label=kind==='quote'?'cotización':'remisión';
+  if(!confirmDelete('¿Borrar la '+label+' '+d.folio+'? El folio no volverá a usarse.'))return;
+  const docs=docStore(),key=kind==='quote'?'quotes':'remissions';
+  docs[key]=docs[key].filter(x=>x.id!==id);
   save();
+  if(kind==='quote')renderQuotes();else renderRemissions();
+}
+function docEditRemission(id){
+  const d=docFind('remission',id);if(!d)return;
+  let dlg=document.getElementById('docEditRemissionDlg');
+  if(!dlg){dlg=document.createElement('dialog');dlg.id='docEditRemissionDlg';document.body.appendChild(dlg)}
+  const client=d.client||{},lines=(d.options?.[0]?.lines||[]);
+  const lineHTML=lines.map(x=>'<div class="doc-line" data-line><input data-description aria-label="Producto o servicio" value="'+esc(x.description||'')+'" placeholder="Producto o servicio"><input data-qty type="number" min="0.01" step="0.01" aria-label="Cantidad" value="'+Number(x.quantity||0)+'"><input data-price type="number" min="0" step="0.01" aria-label="Precio neto unitario" value="'+Number(x.unitPrice||0)+'"><button class="btn sm danger" type="button" onclick="docRemoveLine(this)" aria-label="Quitar renglón">×</button></div>').join('');
+  dlg.innerHTML='<div class="modal-head"><strong>Editar remisión · '+esc(d.folio)+'</strong><button class="close" type="button" aria-label="Cerrar">×</button></div><div class="modal-body"><form class="doc-form" id="docEditRemissionForm">'+
+    '<label class="field"><span>Fecha</span><input name="date" type="date" value="'+esc(d.date||docDate())+'" required></label>'+
+    '<div class="doc-subhead">Datos del cliente</div><div class="row">'+docInput('clientName','Cliente',client.name,'Nombre o razón social')+docInput('projectName','Nombre del proyecto',client.projectName,'Proyecto')+'</div>'+
+    '<div class="row">'+docInput('clientContact','Contacto',client.contact,'Persona de contacto')+docInput('clientPhone','Teléfono',client.phone,'Teléfono')+'</div>'+
+    '<div class="row">'+docInput('clientWhatsApp','WhatsApp',client.whatsapp,'WhatsApp')+docInput('clientEmail','Correo',client.email,'Correo','email')+'</div>'+
+    '<div class="doc-subhead">Conceptos</div><div class="doc-remit-lines" data-lines>'+lineHTML+'</div><button class="btn sm secondary" type="button" onclick="docAddLine(this)">+ Agregar concepto</button>'+
+    '<label class="switch-line"><input type="checkbox" name="includeIVA" '+(d.includeIVA?'checked':'')+'><span>Incluir IVA del 16%</span></label>'+
+    '<label class="field"><span>Notas para el cliente</span><textarea name="notes">'+esc(d.notes||'')+'</textarea></label>'+
+    '<div class="doc-subhead">Factura y pago</div><div class="row"><label class="field"><span>Estado de factura</span><select name="invoiceStatus"><option value="">Sin registrar</option><option '+(d.invoiceStatus==='No facturada'?'selected':'')+'>No facturada</option><option '+(d.invoiceStatus==='Facturada'?'selected':'')+'>Facturada</option></select></label>'+docInput('invoiceFolio','Folio de factura',d.invoiceFolio,'Ej. A-1234')+'</div>'+
+    '<div class="row"><label class="field"><span>Estado de pago</span><select name="paymentStatus"><option value="">Sin registrar</option><option '+(d.paymentStatus==='Por pagar'?'selected':'')+'>Por pagar</option><option '+(d.paymentStatus==='Pagada'?'selected':'')+'>Pagada</option><option '+(d.paymentStatus==='A crédito / PPD'?'selected':'')+'>A crédito / PPD</option></select></label>'+docInput('paymentDate','Fecha de pago',d.paymentDate,'','date')+'</div>'+
+    '<label class="field"><span>Notas privadas de facturación o pago</span><textarea name="billingNote" placeholder="Complementos, aclaraciones o notas internas">'+esc(d.billingNote||'')+'</textarea></label>'+
+    '<label class="field doc-private"><span>Nota privada para SIMOUN</span><textarea name="privateNote">'+esc(d.privateNote||'')+'</textarea></label>'+
+    '<div class="toolbar"><button class="btn" type="submit">Guardar cambios</button><button class="btn secondary" type="button" data-cancel>Cerrar</button></div></form></div>';
+  const form=dlg.querySelector('#docEditRemissionForm'),close=()=>dlg.close();
+  dlg.querySelector('.close').addEventListener('click',close);
+  dlg.querySelector('[data-cancel]').addEventListener('click',close);
+  form.addEventListener('submit',e=>docUpdateRemission(e,id));
+  if(!dlg.open)dlg.showModal();
+}
+function docUpdateRemission(e,id){
+  e.preventDefault();const d=docFind('remission',id);if(!d)return;
+  const form=e.currentTarget,fd=new FormData(form),name=String(fd.get('clientName')||'').trim();
+  if(!name){alert('Escribe el nombre del cliente o razón social.');return}
+  const lines=docReadLines(form.querySelector('.doc-remit-lines'));
+  if(!lines.length){alert('Agrega al menos un concepto a la remisión.');return}
+  d.date=String(fd.get('date')||d.date||docDate());
+  d.client={...d.client,name,projectName:String(fd.get('projectName')||'').trim(),contact:String(fd.get('clientContact')||'').trim(),
+    phone:String(fd.get('clientPhone')||'').trim(),whatsapp:String(fd.get('clientWhatsApp')||'').trim(),email:String(fd.get('clientEmail')||'').trim()};
+  d.options=[{title:'Remisión',description:'',lines}];
+  d.includeIVA=fd.get('includeIVA')==='on';d.notes=String(fd.get('notes')||'').trim();
+  d.invoiceStatus=String(fd.get('invoiceStatus')||'');d.invoiceFolio=String(fd.get('invoiceFolio')||'').trim();
+  d.paymentStatus=String(fd.get('paymentStatus')||'');d.paymentDate=String(fd.get('paymentDate')||'');
+  d.billingNote=String(fd.get('billingNote')||'').trim();d.privateNote=String(fd.get('privateNote')||'').trim();
+  save();document.getElementById('docEditRemissionDlg')?.close();renderRemissions();
 }
 function docPublicHTML(d,kind){
   const quote=kind==='quote',title=quote?'Cotización':'Remisión';
