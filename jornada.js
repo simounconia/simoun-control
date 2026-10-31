@@ -61,6 +61,14 @@ function jornadaSetNoteDate(date){
   save();
 }
 function jornadaShowTodayNote(){saveJDailyNote(false);jornadaNoteViewDate=jornadaToday();save();}
+function jTaskCard(t,day,isDone){
+  const completedDate=t.completedAt?new Date(t.completedAt).toLocaleDateString('es-MX',{day:'numeric',month:'short'}):'Realizado';
+  return '<article class="j-item '+(!isDone&&t.date&&t.date<day?'j-late':'')+'">'+
+    '<button class="j-check '+(isDone?'is-completed':'')+'" title="'+(isDone?'Reabrir pendiente':'Marcar realizado')+'" onclick="toggleJTask(\''+t.id+'\')">'+(isDone?'✓':'○')+'</button>'+
+    '<div class="j-item-text"><strong>'+jesc(t.title)+'</strong><small>'+jesc(t.type||'Pendiente')+(t.note?' · '+jesc(t.note):'')+'</small></div>'+
+    '<span class="j-due">'+(isDone?'✓ '+completedDate:(t.date?jornadaDate(t.date):''))+'</span>'+
+    '<div class="split-actions"><button class="btn sm secondary" type="button" onclick="editJTask(\''+t.id+'\')">Editar</button><button class="j-x" type="button" aria-label="Borrar pendiente" onclick="deleteJTask(\''+t.id+'\')">×</button></div></article>';
+}
 function renderJornada(){
   const root=document.getElementById('jornada'); if(!root)return;
   const j=jornadaData(),day=jornadaToday(),done=j.routineDone[day]||{};
@@ -70,6 +78,7 @@ function renderJornada(){
   const noteDay=jornadaNoteViewDate,noteText=j.dailyNotes[noteDay]||'';
   const noteDates=Object.keys(j.dailyNotes).filter(d=>j.dailyNotes[d]?.trim()).sort((a,b)=>b.localeCompare(a));
   const open=j.tasks.filter(x=>!x.done).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
+  const completed=j.tasks.filter(x=>x.done).sort((a,b)=>String(b.completedAt||b.createdAt||'').localeCompare(String(a.completedAt||a.createdAt||'')));
   const checked=j.routines.filter(x=>done[x.id]).length;
   root.innerHTML=`
     <div class="j-hero"><div><span class="j-kicker">SIMOUN · ORGANIZACIÓN DEL DÍA</span><h2>Jornada de trabajo</h2><p>Captura rápido lo que te pidan y organiza el trabajo del día.</p></div><div class="j-date"><label for="jDay">Hoy</label><strong>${new Date(day+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'})}</strong><small>${open.length} pendiente${open.length===1?'':'s'}</small></div></div>
@@ -82,7 +91,8 @@ function renderJornada(){
           <label class="field"><span>Cliente o nota (opcional)</span><input name="note" placeholder="Nombre, ventana de atención o detalle"></label>
           <button class="btn">+ Agregar pendiente</button>
         </form>
-        <div class="j-items">${open.length?open.map(t=>`<article class="j-item ${t.date&&t.date<day?'j-late':''}"><button class="j-check" title="Marcar realizado" onclick="toggleJTask('${t.id}')">✓</button><div class="j-item-text"><strong>${jesc(t.title)}</strong><small>${jesc(t.type||'Pendiente')}${t.note?' · '+jesc(t.note):''}</small></div><span class="j-due">${t.date?jornadaDate(t.date):''}</span><button class="j-x" aria-label="Eliminar" onclick="deleteJTask('${t.id}')">×</button></article>`).join(''):'<div class="j-empty">No hay pendientes abiertos. Agrega uno en cuanto te lo pidan.</div>'}</div>
+        <div class="j-items">${open.length?open.map(t=>jTaskCard(t,day,false)).join(''):'<div class="j-empty">No hay pendientes abiertos. Agrega uno en cuanto te lo pidan.</div>'}</div>
+        ${completed.length?'<details class="j-completed"><summary>✓ Pendientes realizados · '+completed.length+'</summary><div class="j-items">'+completed.map(t=>jTaskCard(t,day,true)).join('')+'</div></details>':''}
       </section>
       <section class="card j-card"><div class="j-heading"><div><span class="j-icon">☑️</span><h3>Rutina diaria</h3></div><span class="j-count">${checked}/${j.routines.length}</span></div><p class="muted">Se reinicia sola cada día; tus marcas anteriores quedan guardadas.</p>
         <div class="j-routines">${j.routines.map(r=>`<label class="j-routine ${done[r.id]?'is-done':''}"><input type="checkbox" ${done[r.id]?'checked':''} onchange="toggleJRoutine('${r.id}',this.checked)"><span>${jesc(r.title)}</span>${r.custom?'<span class="j-custom-tag">personalizada</span>':''}</label>`).join('')}</div>
@@ -99,8 +109,37 @@ function renderJornada(){
     </div>`;
 }
 function addJTask(e){e.preventDefault();const f=new FormData(e.currentTarget);jornadaData().tasks.unshift({id:uid(),title:f.get('title').trim(),type:f.get('type'),date:f.get('date'),note:f.get('note').trim(),done:false,createdAt:new Date().toISOString()});save()}
-function toggleJTask(id){const x=jornadaData().tasks.find(t=>t.id===id);if(x){x.done=!x.done;save()}}
-function deleteJTask(id){const j=jornadaData();j.tasks=j.tasks.filter(t=>t.id!==id);save()}
+function toggleJTask(id){
+  const x=jornadaData().tasks.find(t=>t.id===id);if(!x)return;
+  x.done=!x.done;
+  if(x.done)x.completedAt=new Date().toISOString();else delete x.completedAt;
+  save();
+}
+function editJTask(id){
+  const task=jornadaData().tasks.find(t=>t.id===id);if(!task)return;
+  let dlg=document.getElementById('jTaskEditDlg');
+  if(!dlg){dlg=document.createElement('dialog');dlg.id='jTaskEditDlg';dlg.innerHTML='<div class="modal-head"><strong>Editar pendiente</strong><button class="close" type="button" aria-label="Cerrar">×</button></div><div class="modal-body"></div>';document.body.appendChild(dlg);dlg.querySelector('.close').addEventListener('click',()=>dlg.close())}
+  const body=dlg.querySelector('.modal-body');
+  body.innerHTML='<form id="jTaskEditForm" style="display:grid;gap:12px">'+
+    '<label class="field"><span>¿Qué tienes que hacer?</span><input name="title" required value="'+jesc(task.title)+'"></label>'+
+    '<div class="row"><label class="field"><span>Tipo</span><select name="type">'+['Cliente','Llamada','Cotización','Seguimiento','Trabajo','Otro'].map(x=>'<option '+(x===(task.type||'Otro')?'selected':'')+'>'+x+'</option>').join('')+'</select></label>'+
+    '<label class="field"><span>Fecha</span><input name="date" type="date" value="'+jesc(task.date||'')+'"></label></div>'+
+    '<label class="field"><span>Cliente o nota</span><input name="note" value="'+jesc(task.note||'')+'"></label>'+
+    '<div class="toolbar"><button class="btn" type="submit">Guardar cambios</button><button class="btn secondary" type="button" data-cancel>Cerrar</button></div></form>';
+  body.querySelector('[data-cancel]').addEventListener('click',()=>dlg.close());
+  body.querySelector('form').addEventListener('submit',e=>{
+    e.preventDefault();const fd=new FormData(e.currentTarget);
+    task.title=String(fd.get('title')||'').trim();task.type=String(fd.get('type')||'Otro');
+    task.date=String(fd.get('date')||'');task.note=String(fd.get('note')||'').trim();
+    save();dlg.close();
+  });
+  dlg.showModal();
+}
+function deleteJTask(id){
+  const j=jornadaData(),task=j.tasks.find(t=>t.id===id);if(!task)return;
+  if(!confirmDelete('¿Borrar definitivamente el pendiente "'+(task.title||'')+'"?'))return;
+  j.tasks=j.tasks.filter(t=>t.id!==id);save();
+}
 function addJRoutine(e){e.preventDefault();const f=new FormData(e.currentTarget),title=f.get('title').trim();if(!title)return;jornadaData().routines.push({id:uid(),title,custom:true});save()}
 function toggleJRoutine(id,checked){const j=jornadaData(),day=jornadaToday();j.routineDone[day] ||= {};j.routineDone[day][id]=checked;save()}
 function deleteJRoutine(e,id){e.preventDefault();e.stopPropagation();const j=jornadaData();j.routines=j.routines.filter(x=>x.id!==id);Object.values(j.routineDone).forEach(x=>delete x[id]);save()}
