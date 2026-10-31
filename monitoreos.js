@@ -60,7 +60,14 @@ function monitorSummary(){
 }
 function monitorMatchesFilter(m){if(monitorFilter==='Todos')return true;if(monitorFilter==='Activos')return m.status!=='BAJA';if(monitorFilter==='Baja')return m.status==='BAJA';if(monitorFilter==='Vencido')return monitorDebt(m)>0;if(monitorFilter==='Por cobrar')return monitorCurrentDue(m)>0;if(monitorFilter==='Adelantado')return monitorHasAdvance(m);return true}
 function setMonitorFilter(v){monitorFilter=v;renderMonitors()}
-function setMonitorSearch(v){monitorSearch=v;renderMonitors()}
+function setMonitorSearch(v){
+  monitorSearch=v;
+  const active=document.activeElement;
+  const cursor=active&&typeof active.selectionStart==='number'?active.selectionStart:String(v).length;
+  renderMonitors();
+  const input=document.querySelector('#monitoreos .monitor-tools input.search');
+  if(input){input.focus({preventScroll:true});try{input.setSelectionRange(cursor,cursor)}catch{}}
+}
 function moveMonitorMonths(n){monitorCalendarStart=addMonth(monitorCalendarStart,n);if(monitorCalendarStart<MONITOR_START)monitorCalendarStart=MONITOR_START;renderMonitors()}
 function monitorStatusCell(m,key){const x=monitorMonthInfo(m,key),meta=MONITOR_STATUS_META[x.status]||MONITOR_STATUS_META.FUTURO;return `<div class="month-cell ${meta.cls}" title="${meta.label} · ${money(x.paid)} de ${money(x.due)}"><strong>${monthLabel(key,true)}</strong><span>${meta.label}</span>${x.status==='PARCIAL'?`<small>${money(x.paid)}</small>`:''}</div>`}
 function monitorWhatsApp(id){const m=state.monitors.find(x=>x.id===id);if(!m)return;let p=String(m.whatsapp||m.phone||'').replace(/\D/g,'');if(p.length===10)p='52'+p;if(!p)return alert('Este cliente no tiene WhatsApp registrado.');window.open('https://wa.me/'+p,'_blank')}
