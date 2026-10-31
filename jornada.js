@@ -72,11 +72,11 @@ function jTaskCard(t,day,isDone){
 function jRoutineRows(j,done){
   return j.routines.map((r,index)=>{
     const classes='j-routine'+(done[r.id]?' is-done':'');
-    return '<div class="'+classes+'"><label class="j-routine-label"><input type="checkbox" '+(done[r.id]?'checked':'')+' onchange="toggleJRoutine(\\''+r.id+'\\',this.checked)"><span>'+jesc(r.title)+'</span>'+(r.custom?'<span class="j-custom-tag">personalizada</span>':'')+'</label>'+
-      '<div class="j-routine-actions"><button type="button" class="j-routine-move" title="Mover paso arriba" aria-label="Mover '+jesc(r.title)+' arriba" '+(index===0?'disabled':'')+' onclick="moveJRoutine(\\''+r.id+'\\',-1)">↑</button>'+
-      '<button type="button" class="j-routine-move" title="Mover paso abajo" aria-label="Mover '+jesc(r.title)+' abajo" '+(index===j.routines.length-1?'disabled':'')+' onclick="moveJRoutine(\\''+r.id+'\\',1)">↓</button>'+
-      '<button type="button" class="j-routine-edit" title="Editar paso" aria-label="Editar '+jesc(r.title)+'" onclick="editJRoutine(\\''+r.id+'\\')">✎</button>'+
-      '<button type="button" class="j-routine-delete" title="Borrar paso" aria-label="Borrar '+jesc(r.title)+'" onclick="deleteJRoutine(event,\\''+r.id+'\\')">×</button></div></div>';
+    return '<div class="'+classes+'"><label class="j-routine-label"><input type="checkbox" '+(done[r.id]?'checked':'')+' onchange="toggleJRoutine(\''+r.id+'\',this.checked)"><span>'+jesc(r.title)+'</span>'+(r.custom?'<span class="j-custom-tag">personalizada</span>':'')+'</label>'+
+      '<div class="j-routine-actions"><button type="button" class="j-routine-move" title="Mover paso arriba" aria-label="Mover '+jesc(r.title)+' arriba" '+(index===0?'disabled':'')+' onclick="moveJRoutine(\''+r.id+'\',-1)">↑</button>'+
+      '<button type="button" class="j-routine-move" title="Mover paso abajo" aria-label="Mover '+jesc(r.title)+' abajo" '+(index===j.routines.length-1?'disabled':'')+' onclick="moveJRoutine(\''+r.id+'\',1)">↓</button>'+
+      '<button type="button" class="j-routine-edit" title="Editar paso" aria-label="Editar '+jesc(r.title)+'" onclick="editJRoutine(\''+r.id+'\')">✎</button>'+
+      '<button type="button" class="j-routine-delete" title="Borrar paso" aria-label="Borrar '+jesc(r.title)+'" onclick="deleteJRoutine(event,\''+r.id+'\')">×</button></div></div>';
   }).join('');
 }
 function renderJornada(){
