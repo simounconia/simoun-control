@@ -37,8 +37,16 @@ function jornadaData(){
 function jornadaToday(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)}
 function jesc(v=''){return esc(v)}
 function jornadaDate(v){if(!v)return 'Sin fecha';return new Date(v+'T12:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'short'})}
-let jornadaNoteViewDate='',jornadaNoteCalendarDay='',jornadaNoteSaveTimer=null;
+let jornadaNoteViewDate='',jornadaNoteCalendarDay='',jornadaNoteSaveTimer=null,jornadaNoteSearch='';
 function jornadaLongDate(v){return new Date(v+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
+function setJornadaNoteSearch(v){
+  jornadaNoteSearch=v;
+  const active=document.activeElement;
+  const cursor=active&&typeof active.selectionStart==='number'?active.selectionStart:String(v).length;
+  renderJornada();
+  const input=document.getElementById('jNoteSearch');
+  if(input){input.focus({preventScroll:true});try{input.setSelectionRange(cursor,cursor)}catch{}}
+}
 function saveJDailyNote(shouldRender=true){
   const j=jornadaData(),date=jornadaNoteViewDate||jornadaToday(),text=document.getElementById('jDailyNote')?.value||'';
   j.dailyNotes ||= {};
@@ -86,7 +94,9 @@ function renderJornada(){
   if(jornadaNoteCalendarDay!==day){jornadaNoteCalendarDay=day;jornadaNoteViewDate=day}
   if(!jornadaNoteViewDate)jornadaNoteViewDate=day;
   const noteDay=jornadaNoteViewDate,noteText=j.dailyNotes[noteDay]||'';
-  const noteDates=Object.keys(j.dailyNotes).filter(d=>j.dailyNotes[d]?.trim()).sort((a,b)=>b.localeCompare(a));
+  const allNoteDates=Object.keys(j.dailyNotes).filter(d=>j.dailyNotes[d]?.trim()).sort((a,b)=>b.localeCompare(a));
+  const noteQuery=jornadaNoteSearch.trim().toLowerCase();
+  const noteDates=allNoteDates.filter(d=>!noteQuery||d.toLowerCase().includes(noteQuery)||String(j.dailyNotes[d]||'').toLowerCase().includes(noteQuery));
   const open=j.tasks.filter(x=>!x.done).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
   const completed=j.tasks.filter(x=>x.done).sort((a,b)=>String(b.completedAt||b.createdAt||'').localeCompare(String(a.completedAt||a.createdAt||'')));
   const checked=j.routines.filter(x=>done[x.id]).length;
@@ -108,13 +118,13 @@ function renderJornada(){
         <div class="j-routines">${jRoutineRows(j,done)}</div>
         <form class="j-add-routine" onsubmit="addJRoutine(event)"><input name="title" required placeholder="Agregar paso a la rutina"><button class="btn secondary">Añadir</button></form>
       </section>
-      <section class="card j-card j-daily-note"><div class="j-heading"><div><span class="j-icon">📝</span><h3>Notas del día</h3></div><span class="j-count">${noteDates.length} día${noteDates.length===1?'':'s'} guardado${noteDates.length===1?'':'s'}</span></div>
+      <section class="card j-card j-daily-note"><div class="j-heading"><div><span class="j-icon">📝</span><h3>Notas del día</h3></div><span class="j-count">${allNoteDates.length} día${allNoteDates.length===1?'':'s'} guardado${allNoteDates.length===1?'':'s'}</span></div>
         <p class="muted">Anota situaciones, acuerdos o detalles que quieras recordar aunque no vayan en el sistema. Cada fecha conserva su propia nota; al abrir un día nuevo tendrás un espacio nuevo.</p>
         <div class="j-note-controls"><label class="field"><span>Fecha de la nota</span><input type="date" value="${noteDay}" onchange="jornadaSetNoteDate(this.value)"></label><button type="button" class="btn secondary" onclick="jornadaShowTodayNote()">Ir a hoy</button></div>
         <div class="j-note-date">${jornadaLongDate(noteDay)}</div>
         <label class="field"><span>¿Qué pasó hoy?</span><textarea id="jDailyNote" oninput="jornadaDraftNote(this.value)" placeholder="Escribe aquí lo que quieras dejar registrado para este día.">${jesc(noteText)}</textarea></label>
         <div class="j-note-actions"><button type="button" class="btn" onclick="saveJDailyNote()">✓ Guardar nota de este día</button><span class="muted">Se guarda asociada a la fecha seleccionada.</span></div>
-        ${noteDates.length?'<div class="j-note-archive"><strong>Notas guardadas por día</strong><div class="j-note-days">'+noteDates.map(d=>'<button type="button" class="btn sm '+(d===noteDay?'':'secondary')+'" onclick="jornadaSetNoteDate(\''+d+'\')">'+jesc(jornadaLongDate(d))+'</button>').join('')+'</div></div>':''}
+        <div class="j-note-archive"><label class="field"><span>Buscar en el diario</span><input id="jNoteSearch" class="search" type="search" placeholder="Escribe una fecha o palabras de la nota" value="\${jesc(jornadaNoteSearch)}" oninput="setJornadaNoteSearch(this.value)"></label><strong>Notas guardadas por día\${noteQuery?' · '+noteDates.length+' coincidencias':''}</strong><div class="j-note-days">\${noteDates.map(d=>'<button type="button" class="btn sm '+(d===noteDay?'':'secondary')+'" onclick="jornadaSetNoteDate(\''+d+'\')">'+jesc(jornadaLongDate(d))+'</button>').join('')||'<span class="muted">No hay notas que coincidan.</span>'}</div></div>
       </section>
     </div>`;
 }
