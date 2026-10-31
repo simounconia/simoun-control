@@ -97,11 +97,11 @@ function docFillClient(kind,select){
 }
 function docAddLine(button){
   const form=button.closest('form'),holder=button.parentElement.querySelector('[data-lines]')||form.querySelector('.doc-remit-lines');
-  if(holder)holder.insertAdjacentHTML('beforeend',docLineRow());
+  if(holder){holder.insertAdjacentHTML('beforeend',docLineRow());if(typeof docUpdateQuoteTotals==='function')docUpdateQuoteTotals(form)}
 }
 function docRemoveLine(button){
-  const holder=button.closest('[data-lines]');
-  if(holder&&holder.querySelectorAll('[data-line]').length>1)button.closest('[data-line]').remove();
+  const form=button.closest('form'),holder=button.closest('[data-lines]');
+  if(holder&&holder.querySelectorAll('[data-line]').length>1){button.closest('[data-line]').remove();if(typeof docUpdateQuoteTotals==='function')docUpdateQuoteTotals(form)}
 }
 function docAddOption(){
   const holder=document.getElementById('quoteOptions');
@@ -152,7 +152,7 @@ function docHistoryCard(d,kind){
   const internal=quote?'':'<small class="doc-private-badge">Pago: '+esc(d.paymentStatus||'Sin registrar')+(d.paymentDate?' · Fecha de pago: '+esc(fmt(d.paymentDate)):'')+(d.invoiceStatus?' · Factura: '+esc(d.invoiceStatus):'')+'</small>';
   return '<article class="doc-history-card"><div class="doc-history-info"><strong>'+esc(d.folio)+'</strong><span>'+esc(d.client.name||'')+(d.client.company?' · '+esc(d.client.company):'')+'</span><small>'+esc(fmt(d.date))+' · '+(quote?d.options.length+' opciones':'Remisión')+' · '+summary+'</small>'+
     (d.privateNote?'<small class="doc-private-badge">Nota privada guardada en SIMOUN</small>':'')+internal+'</div><div class="split-actions">'+
-    (quote?'':'<button class="btn sm secondary" onclick="docEditRemission(\''+d.id+'\')">Editar remisión</button>')+
+    (quote?'<button class="btn sm secondary" onclick="docEditQuote(\''+d.id+'\')">Editar cotización</button>':'<button class="btn sm secondary" onclick="docEditRemission(\''+d.id+'\')">Editar remisión</button>')+
     '<button class="btn sm secondary" onclick="docDownload(\''+kind+'\',\''+d.id+'\')">Descargar archivo</button><button class="btn sm light" onclick="docPrint(\''+kind+'\',\''+d.id+'\')">Imprimir / Guardar PDF</button>'+
     '<button class="btn sm danger" onclick="docDelete(\''+kind+'\',\''+d.id+'\')">Borrar</button></div></article>';
 }
@@ -164,6 +164,73 @@ function docDelete(kind,id){
   docs[key]=docs[key].filter(x=>x.id!==id);
   save();
   if(kind==='quote')renderQuotes();else renderRemissions();
+}
+function docQuoteEditOption(o,n){
+  const lines=(o.lines||[]).map(x=>'<div class="doc-line" data-line><input data-description aria-label="Producto o servicio" value="'+esc(x.description||'')+'" placeholder="Producto o servicio"><input data-qty type="number" min="0.01" step="0.01" aria-label="Cantidad" value="'+Number(x.quantity||0)+'"><input data-price type="number" min="0" step="0.01" aria-label="Precio neto unitario" value="'+Number(x.unitPrice||0)+'"><button class="btn sm danger" type="button" onclick="docRemoveLine(this)" aria-label="Quitar renglón">×</button></div>').join('');
+  return '<article class="doc-option" data-option><div class="doc-option-head"><strong>Opción '+n+'</strong><button class="btn sm danger" type="button" onclick="docRemoveEditQuoteOption(this)">Quitar opción</button></div>'+
+    '<div class="row">'+docInput('optionTitle','Nombre de la opción',o.title,'Ej. Básica, recomendada, premium')+docInput('optionDescription','Descripción breve',o.description,'Alcance o diferencia')+'</div>'+
+    '<div class="doc-lines-head"><strong>Conceptos</strong><span>Captura los precios antes de IVA.</span></div><div data-lines>'+lines+'</div><button class="btn sm secondary" type="button" onclick="docAddLine(this)">+ Agregar concepto</button><div class="doc-option-total" data-option-total></div></article>';
+}
+function docAddEditQuoteOption(){
+  const holder=document.getElementById('quoteEditOptions');if(!holder)return;
+  const n=holder.querySelectorAll('[data-option]').length+1;
+  holder.insertAdjacentHTML('beforeend',docQuoteEditOption({title:'',description:'',lines:[{description:'',quantity:1,unitPrice:0}]},n));
+  docUpdateQuoteTotals(holder.closest('form'));
+}
+function docRemoveEditQuoteOption(button){
+  const holder=document.getElementById('quoteEditOptions');
+  if(holder&&holder.querySelectorAll('[data-option]').length>1){button.closest('[data-option]').remove();docUpdateQuoteTotals(holder.closest('form'))}
+  else alert('La cotización debe conservar al menos una opción.');
+}
+function docUpdateQuoteTotals(form){
+  if(!form)return;
+  const iva=form.elements.includeIVA?.checked||false;
+  form.querySelectorAll('[data-option]').forEach(card=>{
+    const totals=docTotals(docReadLines(card.querySelector('[data-lines]')),iva);
+    const target=card.querySelector('[data-option-total]');
+    if(target)target.textContent='Subtotal: '+money(totals.subtotal)+(iva?' · IVA: '+money(totals.tax):' · Sin IVA')+' · Total: '+money(totals.total);
+  });
+}
+function docEditQuote(id){
+  const d=docFind('quote',id);if(!d)return;
+  let dlg=document.getElementById('docEditQuoteDlg');
+  if(!dlg){dlg=document.createElement('dialog');dlg.id='docEditQuoteDlg';dlg.style.maxWidth='900px';document.body.appendChild(dlg)}
+  const client=d.client||{},options=d.options?.length?d.options:[{title:'Opción 1',description:'',lines:[{description:'',quantity:1,unitPrice:0}]}];
+  dlg.innerHTML='<div class="modal-head"><strong>Editar cotización · '+esc(d.folio)+'</strong><button class="close" type="button" aria-label="Cerrar">×</button></div><div class="modal-body"><form class="doc-form" id="docEditQuoteForm">'+
+    '<label class="field"><span>Fecha</span><input name="date" type="date" value="'+esc(d.date||docDate())+'" required></label>'+
+    '<div class="doc-subhead">Datos del cliente</div><div class="row">'+docInput('clientName','Cliente',client.name,'Nombre o razón social')+docInput('projectName','Nombre del proyecto',client.projectName,'Proyecto')+'</div>'+
+    '<div class="row">'+docInput('clientContact','Contacto',client.contact,'Persona de contacto')+docInput('clientPhone','Teléfono',client.phone,'Teléfono')+'</div>'+
+    '<div class="row">'+docInput('clientWhatsApp','WhatsApp',client.whatsapp,'WhatsApp')+docInput('clientEmail','Correo',client.email,'Correo','email')+'</div>'+
+    '<div class="doc-subhead">Opciones y conceptos</div><div class="doc-option-list" id="quoteEditOptions">'+options.map((o,n)=>docQuoteEditOption(o,n+1)).join('')+'</div>'+
+    '<button class="btn secondary" type="button" onclick="docAddEditQuoteOption()">+ Agregar otra opción</button>'+
+    '<label class="switch-line"><input type="checkbox" name="includeIVA" '+(d.includeIVA?'checked':'')+'><span>Incluir IVA del 16%</span></label>'+
+    '<label class="field"><span>Notas para el cliente</span><textarea name="notes">'+esc(d.notes||'')+'</textarea></label>'+
+    '<label class="field doc-private"><span>Nota privada para SIMOUN</span><textarea name="privateNote">'+esc(d.privateNote||'')+'</textarea></label>'+
+    '<div class="toolbar"><button class="btn" type="submit">Guardar cambios</button><button class="btn secondary" type="button" data-cancel>Cerrar</button></div></form></div>';
+  const form=dlg.querySelector('#docEditQuoteForm'),close=()=>dlg.close();
+  dlg.querySelector('.close').addEventListener('click',close);
+  dlg.querySelector('[data-cancel]').addEventListener('click',close);
+  form.addEventListener('submit',e=>docUpdateQuote(e,id));
+  form.addEventListener('input',()=>docUpdateQuoteTotals(form));
+  form.addEventListener('change',()=>docUpdateQuoteTotals(form));
+  docUpdateQuoteTotals(form);
+  if(!dlg.open)dlg.showModal();
+}
+function docUpdateQuote(e,id){
+  e.preventDefault();const d=docFind('quote',id);if(!d)return;
+  const form=e.currentTarget,fd=new FormData(form),name=String(fd.get('clientName')||'').trim();
+  if(!name){alert('Escribe el nombre del cliente o razón social.');return}
+  const cards=Array.from(form.querySelectorAll('[data-option]'));
+  if(!cards.length){alert('La cotización debe conservar al menos una opción.');return}
+  const options=cards.map((card,n)=>({title:card.querySelector('[name="optionTitle"]').value.trim()||'Opción '+(n+1),
+    description:card.querySelector('[name="optionDescription"]').value.trim(),lines:docReadLines(card.querySelector('[data-lines]'))}));
+  if(options.some(o=>!o.lines.length)){alert('Agrega al menos un concepto en cada opción.');return}
+  d.date=String(fd.get('date')||d.date||docDate());
+  d.client={...d.client,name,projectName:String(fd.get('projectName')||'').trim(),contact:String(fd.get('clientContact')||'').trim(),
+    phone:String(fd.get('clientPhone')||'').trim(),whatsapp:String(fd.get('clientWhatsApp')||'').trim(),email:String(fd.get('clientEmail')||'').trim()};
+  d.options=options;d.includeIVA=fd.get('includeIVA')==='on';
+  d.notes=String(fd.get('notes')||'').trim();d.privateNote=String(fd.get('privateNote')||'').trim();
+  save();document.getElementById('docEditQuoteDlg')?.close();renderQuotes();
 }
 function docEditRemission(id){
   const d=docFind('remission',id);if(!d)return;
