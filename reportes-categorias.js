@@ -163,7 +163,94 @@
       btn.addEventListener('click',()=>openCategoryReport(currentType()));old.replaceWith(btn);
     });
   }
-  function addCategoryButton(){
+
+  function compactPrintCss(){
+    return `
+      body{margin:0;padding:12px;background:#fff;color:#10233f;font-family:Arial, sans-serif;font-size:10pt;line-height:1.3}
+      .report-heading{margin:0 0 10px;padding:0 0 7px;border-bottom:2px solid #0b2c55}
+      .report-heading h1{font-size:17pt;margin:0 0 3px}.report-heading p{margin:0;color:#334b67;font-size:9pt}
+      .report-sheet{max-width:none}
+      .compact-print-client{display:block!important;background:#fff;border:0!important;border-top:2px solid #0b2c55!important;border-radius:0!important;padding:8px 0 7px!important;margin:0!important;box-shadow:none!important;break-inside:auto;page-break-inside:auto}
+      .compact-print-client+.compact-print-client{border-top:3px double #0b2c55!important;margin-top:7px!important;padding-top:10px!important}
+      .compact-print-client .exr-card-head{padding:0 0 5px!important;border-bottom:1px solid #8797aa!important}
+      .compact-print-client .exr-card-head strong{font-size:12pt!important}
+      .compact-print-client .exr-contact{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:3px!important;padding:5px 0!important}
+      .compact-print-client .exr-field{padding:3px 5px!important;border:1px solid #c7d0dc!important;border-radius:2px!important}
+      .compact-print-client .exr-field small{font-size:7pt!important;margin:0!important}
+      .compact-print-client .exr-field strong,.compact-print-client .exr-field a{font-size:8pt!important}
+      .compact-print-client .exr-section-title{font-size:9pt!important;margin:7px 0 3px!important;padding-bottom:2px!important;border-bottom:1px solid #52657c!important}
+      .compact-print-client .exr-service{padding:5px 6px!important;margin:4px 0!important;border:1px solid #9aa8b8!important;border-left:3px solid #2e8bc0!important;border-radius:2px!important;break-inside:avoid-page;page-break-inside:avoid}
+      .compact-print-client .exr-service-head{gap:4px!important}
+      .compact-print-client .exr-details{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:3px!important;margin-top:4px!important}
+      .compact-print-client .exr-finance{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:3px!important;margin-top:4px!important}
+      .compact-print-client .exr-copy{font-size:8pt!important;line-height:1.22!important;margin-top:3px!important}
+      .compact-print-client .exr-print-note{white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;border:1px solid #c7d0dc;border-radius:2px;padding:4px!important;min-height:0!important;font-size:8pt!important;line-height:1.2!important}
+      .compact-print-client .exr-statuses{padding:3px!important;margin-top:3px!important;font-size:7pt!important}
+      .compact-print-client .badge,.compact-print-client .type-label{padding:2px 4px!important;font-size:7pt!important}
+      .compact-print-client .exr-service-head .btn{display:none!important}
+      .report-empty{padding:16px;text-align:center}
+      @page{size:auto;margin:6mm}
+      @media print{body{padding:0!important;font-size:9pt!important}.report-heading{margin-bottom:6px}.compact-print-client{padding-top:5px!important}.compact-print-client .exr-contact{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+    `;
+  }
+  function compactPrintableCard(client){
+    const html=printableCard(client),holder=document.createElement('div');
+    holder.innerHTML=html;
+    const card=holder.firstElementChild;
+    if(card)card.classList.add('compact-print-client');
+    return card?card.outerHTML:'';
+  }
+  function compactReportBody(type){
+    const clients=reportClients(type),cards=clients.map(compactPrintableCard).join('');
+    return `<header class="report-heading"><h1>SIMOUN · Reporte para jefe</h1><p>Filtro: <strong>${escReport(type)}</strong> · ${clients.length} cliente${clients.length===1?'':'s'} · ${reportDate()}</p></header><main class="report-sheet">${cards||'<div class="report-empty">No hay clientes para este filtro.</div>'}</main>`;
+  }
+  function compactReportDocument(type){
+    return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SIMOUN · Impresión para jefe</title><style>'+allCss()+'\\n'+compactPrintCss()+'</style></head><body>'+compactReportBody(type)+'</body></html>';
+  }
+  function downloadCompactReport(type){
+    const blob=new Blob([compactReportDocument(type)],{type:'text/html;charset=utf-8'});
+    const url=URL.createObjectURL(blob),a=document.createElement('a');
+    const slug=String(type||'todos').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    a.href=url;a.download='SIMOUN-impresion-jefe-'+(slug||'todos')+'.html';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
+  }
+  function ensureCompactDialog(){
+    let dlg=document.getElementById('compactReportDlg');if(dlg)return dlg;
+    dlg=document.createElement('dialog');dlg.id='compactReportDlg';dlg.style.maxWidth='1050px';
+    dlg.innerHTML=`
+      <div class="modal-head"><strong>🖨️ Impresión · Reporte para jefe</strong><button class="close" type="button" aria-label="Cerrar">×</button></div>
+      <div class="modal-body">
+        <div class="field" style="margin-bottom:10px"><label>Filtrar clientes por servicio</label><select id="compactReportType"></select></div>
+        <div class="notice" style="margin-bottom:10px">Formato compacto con la información completa, renglones y separadores claros entre fichas y servicios.</div>
+        <iframe id="compactReportPreview" title="Vista previa de impresión" style="width:100%;height:58vh;border:1px solid #dce4ef;border-radius:10px;background:#fff"></iframe>
+        <div class="toolbar" style="margin-top:12px"><button class="btn" type="button" id="compactPrintBtn">🖨️ Imprimir / Guardar como PDF</button><button class="btn secondary" type="button" id="compactDownloadBtn">⬇️ Descargar formato</button></div>
+        <div id="compactReportStatus" class="muted" role="status" aria-live="polite"></div>
+      </div>`;
+    document.body.appendChild(dlg);
+    dlg.querySelector('.close').addEventListener('click',()=>dlg.close());
+    dlg.querySelector('#compactReportType').addEventListener('change',()=>refreshCompactDialog(dlg));
+    dlg.querySelector('#compactPrintBtn').addEventListener('click',()=>{
+      const frame=dlg.querySelector('#compactReportPreview');
+      try{frame.contentWindow.focus();frame.contentWindow.print()}catch{alert('No se pudo abrir la impresión. Intenta descargar el formato.')}
+    });
+    dlg.querySelector('#compactDownloadBtn').addEventListener('click',()=>{
+      downloadCompactReport(dlg.querySelector('#compactReportType').value||'Todos');
+      dlg.querySelector('#compactReportStatus').textContent='Se descargó el formato de impresión.';
+    });
+    return dlg;
+  }
+  function refreshCompactDialog(dlg){
+    const type=dlg.querySelector('#compactReportType').value||'Todos';
+    dlg.querySelector('#compactReportPreview').srcdoc=compactReportDocument(type);
+    dlg.querySelector('#compactReportStatus').textContent='';
+  }
+  function openCompactReport(type=currentType()){
+    const dlg=ensureCompactDialog(),select=dlg.querySelector('#compactReportType'),types=reportTypes();
+    select.innerHTML=types.map(t=>'<option value="'+escReport(t)+'">'+escReport(t)+'</option>').join('');
+    select.value=types.includes(type)?type:'Todos';
+    refreshCompactDialog(dlg);dlg.showModal();
+  }
+\n  function addCategoryButton(){
     const root=document.getElementById('expedientes');if(!root)return;
     const toolbar=root.querySelector(':scope > .toolbar');if(!toolbar||toolbar.querySelector('[data-category-report-main]'))return;
     const btn=document.createElement('button');btn.type='button';btn.className='btn secondary';btn.dataset.categoryReportMain='1';btn.textContent='📋 Reporte para jefe';
