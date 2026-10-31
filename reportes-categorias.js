@@ -253,8 +253,8 @@
 \n  function addCategoryButton(){
     const root=document.getElementById('expedientes');if(!root)return;
     const toolbar=root.querySelector(':scope > .toolbar');if(!toolbar||toolbar.querySelector('[data-category-report-main]'))return;
-    const btn=document.createElement('button');btn.type='button';btn.className='btn secondary';btn.dataset.categoryReportMain='1';btn.textContent='📋 Reporte para jefe';
-    btn.addEventListener('click',()=>openCategoryReport(currentType()));toolbar.appendChild(btn);
+    const btn=document.createElement('button');btn.type='button';btn.className='btn secondary';btn.dataset.categoryReportMain='1';btn.textContent='🖨️ Impresión';
+    btn.addEventListener('click',()=>openCompactReport(currentType()));toolbar.appendChild(btn);
   }
   function enhance(){replaceOldReportButtons(document);addCategoryButton()}
   function install(){
