@@ -257,7 +257,8 @@
     select.value=types.includes(type)?type:'Todos';
     refreshCompactDialog(dlg);dlg.showModal();
   }
-\n  function addCategoryButton(){
+
+  function addCategoryButton(){
     const root=document.getElementById('expedientes');if(!root)return;
     const toolbar=root.querySelector(':scope > .toolbar');if(!toolbar||toolbar.querySelector('[data-category-report-main]'))return;
     const btn=document.createElement('button');btn.type='button';btn.className='btn secondary';btn.dataset.categoryReportMain='1';btn.textContent='🖨️ Impresión';
