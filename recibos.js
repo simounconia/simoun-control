@@ -14,7 +14,7 @@ function receiptNextFolio(){
   return 'REC-'+year+'-'+String(Math.max(docs.receiptCounter||0,max)+1).padStart(4,'0');
 }
 function receiptFileName(d){
-  const clean=s=>String(s||'').normalize('NFC').replace(/[\\/:*?"<>|\x00-\x1f]/g,'').replace(/\s+/g,' ').trim().slice(0,100);
+  const clean=s=>String(s||'').normalize('NFC').replace(/[^\p{L}\p{N} ._-]/gu,'').replace(/\s+/g,' ').trim().slice(0,100);
   return clean(d.folio)+' - '+(clean(d.clientName)||'Sin cliente')+' - SIMOUN';
 }
 function receiptForm(d){
