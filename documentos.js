@@ -302,7 +302,7 @@ function docFilename(d){
   const folio=String(d.folio||'SIN-FOLIO');
   const cliente=String(d.client?.name||'Sin cliente');
   const clean=value=>value.normalize('NFC').replace(/[\\/:*?"<>|\\x00-\\x1F]/g,'').replace(/\s+/g,' ').trim().replace(/[. ]+$/g,'').slice(0,100);
-  return clean(folio)+' - '+(clean(cliente)||'Sin cliente');
+  return clean(folio)+' - '+(clean(cliente)||'Sin cliente')+' - SIMOUN';
 }
 function docPublicHTML(d,kind){
   const quote=kind==='quote',title=quote?'Cotización':'Remisión';
