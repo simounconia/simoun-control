@@ -49,7 +49,7 @@ function receiptRender(){
  const docs=receiptStore(),d=docs.receipts.find(x=>x.id===receiptEditingId);
  root.innerHTML='<div class="doc-hero"><div><span>SIMOUN · COMPROBANTES</span><h1>Recibos de pago</h1><p>Registra anticipos, abonos, liquidaciones o pagos completos. Sin firma.</p></div><div class="doc-total">'+docs.receipts.length+'<small>recibos guardados</small></div></div>'+
  '<div class="doc-layout"><section class="card doc-create-card">'+receiptForm(d)+'</section><section class="card doc-history"><h2>Recibos guardados</h2>'+
- (docs.receipts.length?docs.receipts.slice().reverse().map(x=>'<article class="doc-history-card"><div class="doc-history-info"><strong>'+esc(x.folio)+'</strong><span>'+esc(x.clientName)+'</span><small>'+esc(fmt(x.date))+' · Recibido: '+money(x.amount)+' · Pendiente: '+money(x.balance)+'</small></div><div class="split-actions"><button class="btn sm secondary" onclick="receiptEdit(\''+x.id+'\')">Editar</button><button class="btn sm secondary" onclick="receiptDownload(\''+x.id+'\')">Descargar</button><button class="btn sm light" onclick="receiptPrint(\''+x.id+'\')">Imprimir / PDF</button><button class="btn sm danger" onclick="receiptDelete(\''+x.id+'\')">Borrar</button></div></article>').join(''):'<p class="muted">Todavía no hay recibos guardados.</p>')+'</section></div>';
+ (docs.receipts.length?docs.receipts.slice().reverse().map(x=>'<article class="doc-history-card"><div class="doc-history-info"><strong>'+esc(x.folio)+'</strong><span>'+esc(x.clientName)+'</span><small>'+esc(fmt(x.date))+' · Recibido: '+money(x.amount)+' · Pendiente: '+money(x.balance)+'</small></div><div class="split-actions"><button class="btn sm secondary" onclick="receiptEdit(\''+x.id+'\')">Editar</button><button class="btn sm secondary" onclick="receiptDownload(\''+x.id+'\',this)">Descargar PDF</button><button class="btn sm light" onclick="receiptPrint(\''+x.id+'\')">Imprimir / PDF</button><button class="btn sm danger" onclick="receiptDelete(\''+x.id+'\')">Borrar</button></div></article>').join(''):'<p class="muted">Todavía no hay recibos guardados.</p>')+'</section></div>';
 }
 function receiptSave(e,id){
  e.preventDefault();const f=new FormData(e.currentTarget);
@@ -93,10 +93,9 @@ function receiptHTML(d){
  (d.terms?'<p class="terms">'+e(d.terms)+'</p>':'')+
  '<footer><b>SIMOUN | Sistema de Monitoreo Universal</b><br>Blvd. Rafael García de León #777-A, Chapultepec Sur<br>Morelia, Michoacán, México. C.P. 58260<br>Tel. 443 489 2474 | 443 324 8181<br>Correo: simounpagos@gmail.com | www.simounseguridad.com</footer></body></html>';
 }
-function receiptDownload(id){
+async function receiptDownload(id,button){
  const d=receiptFind(id);if(!d)return;
- const blob=new Blob([receiptHTML(d)],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
- a.href=url;a.download=receiptFileName(d)+'.html';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+ return downloadDocumentPdf(receiptHTML(d),receiptFileName(d)+'.pdf',button);
 }
 function receiptPrint(id){
  const d=receiptFind(id);if(!d)return;

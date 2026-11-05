@@ -174,7 +174,7 @@ function docHistoryCard(d,kind){
   return '<article class="doc-history-card"><div class="doc-history-info"><strong>'+esc(d.folio)+'</strong><span>'+esc(d.client.name||'')+(d.client.company?' · '+esc(d.client.company):'')+'</span><small>'+esc(fmt(d.date))+' · '+(quote?d.options.length+' opciones':'Remisión')+' · '+summary+'</small>'+
     (d.privateNote?'<small class="doc-private-badge">Nota privada guardada en SIMOUN</small>':'')+internal+'</div><div class="split-actions">'+
     (quote?'<button class="btn sm secondary" onclick="docEditQuote(\''+d.id+'\')">Editar cotización</button>':'<button class="btn sm secondary" onclick="docEditRemission(\''+d.id+'\')">Editar remisión</button>')+
-    '<button class="btn sm secondary" onclick="docDownload(\''+kind+'\',\''+d.id+'\')">Descargar archivo</button><button class="btn sm light" onclick="docPrint(\''+kind+'\',\''+d.id+'\')">Imprimir / Guardar PDF</button>'+
+    '<button class="btn sm secondary" onclick="docDownload(\''+kind+'\',\''+d.id+'\',this)">Descargar PDF</button><button class="btn sm light" onclick="docPrint(\''+kind+'\',\''+d.id+'\')">Imprimir / Guardar PDF</button>'+
     '<button class="btn sm danger" onclick="docDelete(\''+kind+'\',\''+d.id+'\')">Borrar</button></div></article>';
 }
 function docDelete(kind,id){
@@ -319,10 +319,39 @@ function docPublicHTML(d,kind){
     opts+(d.notes?'<div class="notes"><b>Notas</b><br>'+esc(d.notes).replace(/\n/g,'<br>')+'</div>':'')+(quote&&d.includeSignature&&d.signatureImage?'<div style="margin-top:24px;break-inside:avoid;page-break-inside:avoid"><img src="'+d.signatureImage+'" alt="Firma administrativa" style="max-width:240px;max-height:100px;object-fit:contain;display:block"><strong>Jessica Pimentel G.R - Administrativo</strong></div>':'')+'<p class="muted" style="margin-top:30px">Gracias por su preferencia · '+esc(s.name||'SIMOUN')+'</p></body></html>';
 }
 function docFind(kind,id){return docList(kind).find(x=>x.id===id)}
-function docDownload(kind,id){
+async function downloadDocumentPdf(html,filename,button){
+  if(typeof window.html2pdf!=='function'){alert('No se pudo cargar el generador de PDF. Recarga SIMOUN e inténtalo de nuevo.');return}
+  const oldText=button?.textContent;
+  if(button){button.disabled=true;button.textContent='Preparando PDF…'}
+  const frame=document.createElement('iframe');
+  frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;
+  frame.style.cssText='position:fixed;left:-10000px;top:0;width:850px;height:1100px;border:0;pointer-events:none;z-index:-1';
+  document.body.appendChild(frame);
+  try{
+    const doc=frame.contentDocument;doc.open();doc.write(html);doc.close();
+    await new Promise(resolve=>setTimeout(resolve,100));
+    await Promise.all(Array.from(doc.images).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{
+      img.onload=img.onerror=()=>resolve();setTimeout(resolve,2500);
+    })));
+    await window.html2pdf().set({
+      margin:[12,12,14,12],
+      filename,
+      image:{type:'jpeg',quality:0.98},
+      html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',windowWidth:850,logging:false},
+      jsPDF:{unit:'mm',format:'letter',orientation:'portrait'},
+      pagebreak:{mode:['css','legacy']}
+    }).from(doc.body).save();
+  }catch(error){
+    console.error('Error al generar PDF de SIMOUN:',error);
+    alert('No se pudo crear el PDF. Intenta de nuevo o usa Imprimir / Guardar PDF.');
+  }finally{
+    frame.remove();
+    if(button){button.disabled=false;button.textContent=oldText||'Descargar PDF'}
+  }
+}
+async function docDownload(kind,id,button){
   const d=docFind(kind,id);if(!d)return;
-  const blob=new Blob([docPublicHTML(d,kind)],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
-  a.href=url;a.download=docFilename(d)+'.html';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  return downloadDocumentPdf(docPublicHTML(d,kind),docFilename(d)+'.pdf',button);
 }
 function docPrint(kind,id){
   const d=docFind(kind,id);if(!d)return;
