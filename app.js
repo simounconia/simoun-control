@@ -1,4 +1,4 @@
-const PAGES=[['inicio','Inicio'],['expedientes','Expedientes'],['calendario','Calendario'],['monitoreos','Monitoreos'],['jornada','Jornada'],['cotizaciones','Cotizaciones'],['remisiones','Remisiones'],['recibos','Recibos de pago'],['compras','Compras']];
+const PAGES=[['inicio','Inicio'],['expedientes','Clientes'],['calendario','Calendario'],['monitoreos','Monitoreos'],['jornada','Jornada'],['cotizaciones','Cotizaciones'],['remisiones','Remisiones'],['recibos','Recibos de pago'],['compras','Compras']];
 const ISSUE_TYPES=['Pregunta','Seguimiento','Reparación','Instalación','Mantenimiento','Cotización','Facturación','Cobro','Trabajo incompleto','Trabajo futuro / promesa'];
 const TYPE_META={
   'Pregunta':{icon:'❓',color:'#7c3aed',bg:'#f3e8ff',ink:'#6d28d9'},
