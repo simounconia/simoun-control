@@ -43,6 +43,26 @@ function docCompanyForm(){
     '<div class="row">'+docInput('whatsapp','WhatsApp',c.whatsapp,'WhatsApp de SIMOUN')+docInput('email','Correo',c.email,'Correo de contacto','email')+'</div>'+
     '<button class="btn secondary" type="submit">Guardar datos de SIMOUN</button></form></details>';
 }
+function docSignatureSettings(){
+ const image=docStore().signatureImage||'';
+ return '<details class="doc-company"><summary>Firma administrativa para cotizaciones</summary><p class="muted">Carga una vez tu imagen original. Solo se incluirá al marcar la casilla.</p><label class="field"><span>Imagen (PNG o JPG)</span><input type="file" accept="image/png,image/jpeg,image/webp" onchange="docUploadSignature(this)"></label>'+
+ (image?'<p>Firma lista. <button type="button" class="btn sm secondary" onclick="docRemoveSignature()">Quitar firma</button></p><img src="'+image+'" alt="Firma guardada" style="max-width:220px;max-height:90px;object-fit:contain">':'<p class="muted">Aún no se ha cargado la firma.</p>')+
+ '<p><strong>Jessica Pimentel G.R - Administrativo</strong></p></details>';
+}
+function docUploadSignature(input){
+ const file=input.files?.[0];if(!file)return;
+ if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>1500000){alert('Usa PNG/JPG de menos de 1.5 MB.');return}
+ const reader=new FileReader();
+ reader.onload=()=>{const value=String(reader.result||'');if(!value.startsWith('data:image/'))return;docStore().signatureImage=value;save();renderQuotes();alert('Firma lista para las cotizaciones que elijas.')};
+ reader.readAsDataURL(file);
+}
+function docRemoveSignature(){
+ if(!confirm('¿Quitar firma de futuras cotizaciones? Las ya guardadas la conservan.'))return;
+ delete docStore().signatureImage;save();renderQuotes();
+}
+function docSignatureCheckbox(checked){
+ return '<label class="switch-line"><input type="checkbox" name="includeSignature" '+(checked?'checked':'')+'><span>Incluir firma y nombre en esta cotización (opcional)</span></label>';
+}
 function docClientOptions(){
   return '<option value="">Capturar cliente manualmente</option>'+state.clients.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name||'Sin nombre')+(c.company?' · '+esc(c.company):'')+'</option>').join('');
 }
@@ -71,14 +91,14 @@ function docForm(kind){
     '<label class="switch-line"><input type="checkbox" name="includeIVA"><span>Incluir IVA del 16% en el documento</span></label>'+
     '<label class="field"><span>Notas para el cliente</span><textarea name="notes" placeholder="Condiciones, vigencia o información adicional visible para el cliente"></textarea></label>'+
     (quote?'':'<div class="doc-subhead">Control de factura y pago</div><div class="row"><label class="field"><span>Estado de factura</span><select name="invoiceStatus"><option value="">Seleccionar</option><option>No facturada</option><option>Facturada</option></select></label><label class="field"><span>Folio de factura</span><input name="invoiceFolio" placeholder="Ej. A-1234"></label></div><div class="row"><label class="field"><span>Estado de pago</span><select name="paymentStatus"><option value="">Sin registrar</option><option>Por pagar</option><option>Pagada</option><option>A crédito / PPD</option></select></label><label class="field"><span>Nota de facturación y complementos (privada)</span><textarea name="billingNote" placeholder="Ej. Pendiente complemento de pago, fecha o detalle de seguimiento"></textarea></label></div>')+
-    '<label class="field doc-private"><span>Nota privada para SIMOUN</span><textarea name="privateNote" placeholder="Modelos, costo, proveedor u otros datos internos. No aparecerán en el documento descargable."></textarea></label>'+
+    (quote?docSignatureCheckbox(false):'')+'<label class="field doc-private"><span>Nota privada para SIMOUN</span><textarea name="privateNote" placeholder="Modelos, costo, proveedor u otros datos internos. No aparecerán en el documento descargable."></textarea></label>'+
     '<button class="btn doc-create" type="submit">Guardar '+label+' y asignar folio</button></form>';
 }
 function docRender(kind){
   const quote=kind==='quote',id=quote?'cotizaciones':'remisiones',title=quote?'Cotizaciones':'Remisiones',items=docList(kind),root=document.getElementById(id);
   if(!root)return;
   root.innerHTML='<div class="doc-hero"><div><span>SIMOUN · DOCUMENTOS</span><h1>'+title+'</h1><p>'+(quote?'Prepara propuestas con dos o más opciones.':'Prepara remisiones con folio, sin opciones.')+'</p></div><div class="doc-total">'+items.length+'<small>documentos guardados</small></div></div>'+
-    docCompanyForm()+'<div class="doc-layout"><section class="card doc-create-card">'+docForm(kind)+'</section><section class="card doc-history"><div class="doc-history-head"><h2>Historial de '+title.toLowerCase()+'</h2><span class="muted">Folios consecutivos</span></div>'+
+    docCompanyForm()+(quote?docSignatureSettings():'')+'<div class="doc-layout"><section class="card doc-create-card">'+docForm(kind)+'</section><section class="card doc-history"><div class="doc-history-head"><h2>Historial de '+title.toLowerCase()+'</h2><span class="muted">Folios consecutivos</span></div>'+
     (items.length?items.slice().reverse().map(d=>docHistoryCard(d,kind)).join(''):'<div class="empty">Todavía no hay '+title.toLowerCase()+' guardadas.</div>')+'</section></div>';
 }
 function renderQuotes(){docRender('quote')}
@@ -142,7 +162,8 @@ function docCreate(e,kind){
   const d={id:uid(),folio:docIssueFolio(kind),date:String(fd.get('date')||docDate()),createdAt:new Date().toISOString(),
     simoun:{...company},client,options,includeIVA:fd.get('includeIVA')==='on',notes:String(fd.get('notes')||'').trim(),privateNote:String(fd.get('privateNote')||'').trim(),
     invoiceStatus:quote?'':String(fd.get('invoiceStatus')||''),invoiceFolio:quote?'':String(fd.get('invoiceFolio')||'').trim(),
-    paymentStatus:quote?'':String(fd.get('paymentStatus')||''),billingNote:quote?'':String(fd.get('billingNote')||'').trim()};
+    paymentStatus:quote?'':String(fd.get('paymentStatus')||''),billingNote:quote?'':String(fd.get('billingNote')||'').trim(),includeSignature:quote&&fd.get('includeSignature')==='on',signatureImage:quote&&fd.get('includeSignature')==='on'?(docs.signatureImage||''):''};
+  if(d.includeSignature&&!d.signatureImage){alert('Primero carga la imagen original en Firma administrativa.');return}
   (quote?docs.quotes:docs.remissions).push(d);save();alert((quote?'Cotización':'Remisión')+' guardada con folio '+d.folio+'.');
 }
 function docSubtotal(lines){return lines.reduce((sum,x)=>sum+(Number(x.quantity)||0)*(Number(x.unitPrice)||0),0)}
@@ -205,6 +226,7 @@ function docEditQuote(id){
     '<button class="btn secondary" type="button" onclick="docAddEditQuoteOption()">+ Agregar otra opción</button>'+
     '<label class="switch-line"><input type="checkbox" name="includeIVA" '+(d.includeIVA?'checked':'')+'><span>Incluir IVA del 16%</span></label>'+
     '<label class="field"><span>Notas para el cliente</span><textarea name="notes">'+esc(d.notes||'')+'</textarea></label>'+
+    docSignatureCheckbox(!!d.includeSignature)+
     '<label class="field doc-private"><span>Nota privada para SIMOUN</span><textarea name="privateNote">'+esc(d.privateNote||'')+'</textarea></label>'+
     '<div class="toolbar"><button class="btn" type="submit">Guardar cambios</button><button class="btn secondary" type="button" data-cancel>Cerrar</button></div></form></div>';
   const form=dlg.querySelector('#docEditQuoteForm'),close=()=>dlg.close();
@@ -230,6 +252,9 @@ function docUpdateQuote(e,id){
     phone:String(fd.get('clientPhone')||'').trim(),whatsapp:String(fd.get('clientWhatsApp')||'').trim(),email:String(fd.get('clientEmail')||'').trim()};
   d.options=options;d.includeIVA=fd.get('includeIVA')==='on';
   d.notes=String(fd.get('notes')||'').trim();d.privateNote=String(fd.get('privateNote')||'').trim();
+  const useSignature=fd.get('includeSignature')==='on';
+  if(useSignature&&!d.signatureImage&&!docStore().signatureImage){alert('Primero carga la imagen original de la firma.');return}
+  d.includeSignature=useSignature;d.signatureImage=useSignature?(d.signatureImage||docStore().signatureImage||''):'';
   save();document.getElementById('docEditQuoteDlg')?.close();renderQuotes();
 }
 function docEditRemission(id){
@@ -285,7 +310,7 @@ function docPublicHTML(d,kind){
     'body{font:14px Arial,sans-serif;color:#17283c;margin:36px auto;max-width:850px;padding:0 24px}header{display:flex;justify-content:space-between;border-bottom:3px solid #0b2c55;padding-bottom:16px}h1{color:#0b2c55;margin:0}h2{color:#164a78}.muted{color:#58697c}.folio{text-align:right;font-size:16px;font-weight:bold}.parties{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:22px 0}.party h3{margin:0 0 7px;color:#164a78}p{line-height:1.45;margin:4px 0}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{text-align:left;padding:9px 7px;border-bottom:1px solid #dce4ef}th{background:#eef3f8}.totals{margin:12px 0 18px auto;max-width:300px}.totals div{display:flex;justify-content:space-between;padding:5px}.grand{border-top:2px solid #0b2c55;font-size:16px;color:#0b2c55}.option{margin:24px 0;page-break-inside:avoid}.notes{border:1px solid #dce4ef;border-radius:8px;padding:12px;margin-top:22px;white-space:pre-wrap}@media print{body{margin:0 auto;padding:0 10mm}}@media(max-width:600px){.parties{grid-template-columns:1fr}body{padding:0 14px}}'+
     '</style></head><body><header><div><h1>'+esc(s.name||'SIMOUN')+'</h1><p>'+(s.phone?'Teléfono: '+esc(s.phone)+'<br>':'')+(s.whatsapp?'WhatsApp: '+esc(s.whatsapp)+'<br>':'')+(s.email?'Correo: '+esc(s.email):'')+'</p></div><div class="folio">'+esc(title.toUpperCase())+'<br>'+esc(d.folio)+'<p class="muted">Fecha: '+esc(fmt(d.date))+'</p></div></header>'+
     '<div class="parties"><div class="party"><h3>Cliente</h3><p><b>'+esc(c.name||'')+'</b><br>'+(c.projectName?'Proyecto: '+esc(c.projectName)+'<br>':'')+(c.contact?'Contacto: '+esc(c.contact)+'<br>':'')+(c.phone?'Teléfono: '+esc(c.phone)+'<br>':'')+(c.whatsapp?'WhatsApp: '+esc(c.whatsapp)+'<br>':'')+(c.email?'Correo: '+esc(c.email):'')+'</p></div></div>'+
-    opts+(d.notes?'<div class="notes"><b>Notas</b><br>'+esc(d.notes).replace(/\n/g,'<br>')+'</div>':'')+'<p class="muted" style="margin-top:30px">Gracias por su preferencia · '+esc(s.name||'SIMOUN')+'</p></body></html>';
+    opts+(d.notes?'<div class="notes"><b>Notas</b><br>'+esc(d.notes).replace(/\n/g,'<br>')+'</div>':'')+(quote&&d.includeSignature&&d.signatureImage?'<div style="margin-top:24px;break-inside:avoid;page-break-inside:avoid"><img src="'+d.signatureImage+'" alt="Firma administrativa" style="max-width:240px;max-height:100px;object-fit:contain;display:block"><strong>Jessica Pimentel G.R - Administrativo</strong></div>':'')+'<p class="muted" style="margin-top:30px">Gracias por su preferencia · '+esc(s.name||'SIMOUN')+'</p></body></html>';
 }
 function docFind(kind,id){return docList(kind).find(x=>x.id===id)}
 function docDownload(kind,id){
