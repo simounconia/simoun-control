@@ -298,6 +298,12 @@ function docUpdateRemission(e,id){
   d.billingNote=String(fd.get('billingNote')||'').trim();d.privateNote=String(fd.get('privateNote')||'').trim();
   save();document.getElementById('docEditRemissionDlg')?.close();renderRemissions();
 }
+function docFilename(d){
+  const folio=String(d.folio||'SIN-FOLIO');
+  const cliente=String(d.client?.name||'Sin cliente');
+  const clean=value=>value.normalize('NFC').replace(/[\\/:*?"<>|\\x00-\\x1F]/g,'').replace(/\s+/g,' ').trim().replace(/[. ]+$/g,'').slice(0,100);
+  return clean(folio)+' - '+(clean(cliente)||'Sin cliente');
+}
 function docPublicHTML(d,kind){
   const quote=kind==='quote',title=quote?'Cotización':'Remisión';
   const table=lines=>'<table><thead><tr><th>Concepto</th><th>Cantidad</th><th>Precio unitario</th><th>Importe</th></tr></thead><tbody>'+
@@ -306,7 +312,7 @@ function docPublicHTML(d,kind){
   const opts=quote?d.options.map((o,i)=>'<section class="option"><h2>'+esc(o.title||'Opción '+(i+1))+'</h2>'+(o.description?'<p>'+esc(o.description)+'</p>':'')+table(o.lines)+totals(o.lines)+'</section>').join(''):
     table((d.options[0]||{}).lines||[])+totals((d.options[0]||{}).lines||[]);
   const s=d.simoun||{},c=d.client||{};
-  return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title+' '+d.folio)+'</title><style>'+
+  return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(docFilename(d))+'</title><style>'+
     'body{font:14px Arial,sans-serif;color:#17283c;margin:36px auto;max-width:850px;padding:0 24px}header{display:flex;justify-content:space-between;border-bottom:3px solid #0b2c55;padding-bottom:16px}h1{color:#0b2c55;margin:0}h2{color:#164a78}.muted{color:#58697c}.folio{text-align:right;font-size:16px;font-weight:bold}.parties{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:22px 0}.party h3{margin:0 0 7px;color:#164a78}p{line-height:1.45;margin:4px 0}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{text-align:left;padding:9px 7px;border-bottom:1px solid #dce4ef}th{background:#eef3f8}.totals{margin:12px 0 18px auto;max-width:300px}.totals div{display:flex;justify-content:space-between;padding:5px}.grand{border-top:2px solid #0b2c55;font-size:16px;color:#0b2c55}.option{margin:24px 0;page-break-inside:avoid}.notes{border:1px solid #dce4ef;border-radius:8px;padding:12px;margin-top:22px;white-space:pre-wrap}@media print{body{margin:0 auto;padding:0 10mm}}@media(max-width:600px){.parties{grid-template-columns:1fr}body{padding:0 14px}}'+
     '</style></head><body><header><div><h1>'+esc(s.name||'SIMOUN')+'</h1><p>'+(s.phone?'Teléfono: '+esc(s.phone)+'<br>':'')+(s.whatsapp?'WhatsApp: '+esc(s.whatsapp)+'<br>':'')+(s.email?'Correo: '+esc(s.email):'')+'</p></div><div class="folio">'+esc(title.toUpperCase())+'<br>'+esc(d.folio)+'<p class="muted">Fecha: '+esc(fmt(d.date))+'</p></div></header>'+
     '<div class="parties"><div class="party"><h3>Cliente</h3><p><b>'+esc(c.name||'')+'</b><br>'+(c.projectName?'Proyecto: '+esc(c.projectName)+'<br>':'')+(c.contact?'Contacto: '+esc(c.contact)+'<br>':'')+(c.phone?'Teléfono: '+esc(c.phone)+'<br>':'')+(c.whatsapp?'WhatsApp: '+esc(c.whatsapp)+'<br>':'')+(c.email?'Correo: '+esc(c.email):'')+'</p></div></div>'+
@@ -316,7 +322,7 @@ function docFind(kind,id){return docList(kind).find(x=>x.id===id)}
 function docDownload(kind,id){
   const d=docFind(kind,id);if(!d)return;
   const blob=new Blob([docPublicHTML(d,kind)],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
-  a.href=url;a.download=d.folio+'.html';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  a.href=url;a.download=docFilename(d)+'.html';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
 function docPrint(kind,id){
   const d=docFind(kind,id);if(!d)return;
