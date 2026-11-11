@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict'),fs=require('fs'),os=require('os'),path=require('path'),{zipSync,strToU8}=require('fflate');
+const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'recon-restore-'));
+for(const file of ['restore','model','backup'])require('esbuild').buildSync({entryPoints:['app/'+file+'.ts'],bundle:true,platform:'node',format:'cjs',outfile:path.join(tmp,file+'.cjs')});
+const {prepareRestore}=require(path.join(tmp,'restore.cjs')),{blankMovement,blankClient}=require(path.join(tmp,'model.cjs')),{documentPath}=require(path.join(tmp,'backup.cjs'));
+const p={id:'period-one',name:'Cuenta prueba',month:'2026-10',opening:0,closing:100,currency:'MXN'},c=blankClient(),m={...blankMovement(p.id),date:'2026-10-01',credit:100,concept:'Prueba',archived:true};
+const d={periods:[p],clients:[c],movements:[m]},empty={periods:[],clients:[],movements:[]},f={id:crypto.randomUUID(),entity:m.id,name:'prueba.xml',kind:'Factura PDF/XML',size:4,created:new Date().toISOString()};
+const entries={'Respaldo_registros.json':strToU8(JSON.stringify({version:2,data:d,files:[f]})),[documentPath(f)]:strToU8('test')};
+const bytes=zipSync(entries),r=prepareRestore(bytes,empty,[]);assert.equal(r.added,3);assert.equal(r.uploads.length,1);assert.equal(r.data.movements[0].archived,true);
+const again=prepareRestore(bytes,r.data,[f]);assert.equal(again.added,0);assert.equal(again.uploads.length,0);assert.equal(again.conflicts.length,0);
+const changed=structuredClone(d);changed.movements[0].notes='newer';assert.equal(prepareRestore(bytes,changed,[f]).conflicts.length,1);
+assert.throws(()=>prepareRestore(zipSync({'Respaldo_registros.json':entries['Respaldo_registros.json']}),empty,[]),/Falta el archivo/);
+const v1=zipSync({...entries,'Respaldo_registros.json':strToU8(JSON.stringify({version:1,period:p,movements:[m],clients:[c],files:[f]}))});assert.equal(prepareRestore(v1,empty,[]).added,3);
+fs.mkdirSync('/workspace/shared/recon-tests',{recursive:true});fs.writeFileSync('/workspace/shared/recon-tests/respaldo_prueba.zip',bytes);
+console.log('PASS: full/period backups, archived data and files, repeat import idempotent, conflicts and missing attachments blocked.');

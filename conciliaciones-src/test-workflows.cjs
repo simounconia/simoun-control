@@ -1,0 +1,24 @@
+const assert=require('node:assert/strict');
+const Excel=require('exceljs');
+const fs=require('fs');
+const path=require('node:path'),os=require('node:os');
+const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'simoun-test-'));
+require('esbuild').buildSync({entryPoints:['app/excel.ts'],bundle:true,platform:'node',format:'cjs',outfile:path.join(tmp,'excel.cjs')});
+const api=require(path.join(tmp,'excel.cjs'));
+fs.mkdirSync('/workspace/shared/recon-tests',{recursive:true});
+(async()=>{
+ const wb=new Excel.Workbook(),ws=wb.addWorksheet('Movimientos');
+ ws.addRow(['Fecha','Concepto','Referencia','Cargo','Abono','Saldo']);
+ ws.addRow(['2026-11-02','Pago de cliente de prueba','001',0,1000,2000]);
+ ws.addRow(['03/11/2026','Gasto de prueba','002',200,0,1800]);
+ const bytes=await wb.xlsx.writeBuffer();fs.writeFileSync('/workspace/shared/recon-tests/estado_prueba.xlsx',bytes);
+ const p={id:'test-period',name:'Cuenta de prueba',month:'2026-11',opening:100000,closing:180000,currency:'MXN'};
+ const file=new File([bytes],'estado_prueba.xlsx');
+ const r=await api.importExcel(file,p,[]);assert.equal(r.errors.length,0);assert.equal(r.rows.length,2);assert.equal(r.rows[0].m.credit,100000);assert.equal(r.rows[1].m.date,'2026-11-03');assert.equal(r.rows[1].m.debit,20000);
+ const dup=await api.importExcel(file,p,r.rows.map(x=>x.m));assert(dup.rows.every(x=>x.duplicate&&!x.selected));
+ ws.addRow(['2026-11-04','Dos importes inválidos','003',100,200,0]);const bad=await api.importExcel(new File([await wb.xlsx.writeBuffer()],'bad.xlsx'),p,[]);assert.equal(bad.errors.length,1);
+ assert.throws(()=>api.parseDate('2026-02-30'));assert.throws(()=>api.parseAmount('123.456'));assert.equal(api.parseAmount('$1,234.56'),123456);
+ const report=await api.report({periods:[p],movements:r.rows.map(x=>x.m),clients:[]},p,[]);const result=new Excel.Workbook();await result.xlsx.load(report.bytes);assert.equal(result.worksheets.length,6);assert.equal(result.getWorksheet('Movimientos').getCell('F2').value,1000);assert.equal(result.getWorksheet('Movimientos').getCell('E3').value,200);assert.equal(result.getWorksheet('Resumen').getCell('B9').formula,'B7-B8');
+ fs.writeFileSync('/workspace/shared/recon-tests/comprobante_prueba.xml','<?xml version="1.0"?><Prueba descripcion="Documento de prueba, sin validez fiscal"/>');
+ console.log('PASS: importación, fechas, centavos, duplicados, errores y seis hojas del reporte.');
+})().catch(e=>{console.error(e);process.exit(1)});

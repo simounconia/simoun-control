@@ -1,0 +1,30 @@
+{
+  "name": "simoun-conciliaciones-independiente",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "dev": "vite --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.119.0",
+    "exceljs": "4.4.0",
+    "fflate": "0.8.3",
+    "lucide-react": "1.31.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "@xmldom/xmldom": "0.9.12",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3",
+    "vite": "8.0.13"
+  }
+}

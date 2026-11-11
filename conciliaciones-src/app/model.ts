@@ -1,0 +1,14 @@
+export type Complement={xmlKey?:string;id:string;folio:string;uuid:string;date:string;paymentDate:string;amount:number;notes:string};
+export type Invoice={id:string;folio:string;uuid:string;date:string;due:string;total:number;allocated:number;method:''|'PUE'|'PPD';status:'Vigente'|'Cancelada'|'Sustituida';replacement:string;notes:string;complements:Complement[]};
+export type Movement={archived?:boolean;id:string;period:string;date:string;concept:string;reference:string;debit:number;credit:number;balance:number|null;type:''|'Gasto'|'Compra'|'Venta'|'Traspaso'|'Otro';clientId:string;fiscalName:string;notes:string;reviewed:boolean;noReceipt:boolean;invoices:Invoice[];fingerprint:string;source:string};
+export type Client={id:string;name:string;rfc:string;regime:string;usage:string;postal:string;address:string;email:string;phone:string;contact:string;notes:string};
+export type Period={id:string;name:string;month:string;opening:number;closing:number;currency:'MXN'};
+export type Data={periods:Period[];movements:Movement[];clients:Client[]};
+export type Attachment={id:string;entity:string;name:string;kind:string;size:number;created:string};
+export const uid=()=>crypto.randomUUID();
+export const money=(n:number)=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(n/100);
+export const blankInvoice=():Invoice=>({id:uid(),folio:'',uuid:'',date:'',due:'',total:0,allocated:0,method:'',status:'Vigente',replacement:'',notes:'',complements:[]});
+export const blankComplement=():Complement=>({id:uid(),folio:'',uuid:'',date:'',paymentDate:'',amount:0,notes:''});
+export const blankMovement=(period:string):Movement=>({id:uid(),period,date:'',concept:'',reference:'',debit:0,credit:0,balance:null,type:'',clientId:'',fiscalName:'',notes:'',reviewed:false,noReceipt:false,invoices:[],fingerprint:'',source:'Captura manual'});
+export const blankClient=():Client=>({id:uid(),name:'',rfc:'',regime:'',usage:'',postal:'',address:'',email:'',phone:'',contact:'',notes:''});
+export function pending(m:Movement){const a:string[]=[];if(!m.type)a.push('Sin clasificar');if(['Gasto','Compra','Venta'].includes(m.type)&&!m.fiscalName)a.push('Sin nombre fiscal');const live=m.invoices.filter(i=>i.status==='Vigente');if(['Gasto','Compra','Venta'].includes(m.type)&&!live.length&&!m.noReceipt)a.push('Sin factura');if(m.noReceipt)a.push('Sin comprobante (declarado)');if(live.some(i=>!i.uuid||!i.folio||!i.date||!i.method))a.push('CFDI incompleto');if(live.some(i=>i.method==='PPD'&&!i.complements.length))a.push('Falta complemento');if(live.some(i=>i.complements.some(c=>!c.uuid||!c.folio||!c.date||!c.paymentDate)))a.push('Complemento incompleto');if(live.some(i=>i.method==='PPD'&&i.complements.length&&i.complements.reduce((s,c)=>s+c.amount,0)!==i.allocated))a.push('Revisar importe de complementos');if(live.length&&live.reduce((s,i)=>s+i.allocated,0)!==m.credit+m.debit)a.push('Importe por aplicar');if(!m.reviewed)a.push('Por revisar');return a}

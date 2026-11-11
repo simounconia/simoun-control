@@ -1,8 +1,10 @@
-const CACHE='simoun-pwa-v74-named-pdf-downloads';
+const CACHE='simoun-pwa-v75-private-recon-exclusion';
 const ASSETS=['./','./index.html','./app.js','./sync.js','./monitoreos.js','./captura-rapida.js','./reportes-categorias.js','./jornada.js','./expedientes-resumen.js','./servicios-clientes.js','./documentos.js','./recibos.js','./vendor/html2pdf.bundle.min.js','./guardado-flexible.js','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET')return;
+  const url=new URL(event.request.url);
+  if(url.origin!==self.location.origin||url.pathname.includes('/conciliaciones/'))return;
   event.respondWith(fetch(event.request).then(res=>{const copy=res.clone();caches.open(CACHE).then(c=>c.put(event.request,copy));return res}).catch(()=>caches.match(event.request).then(r=>r||caches.match('./index.html'))));
 });
