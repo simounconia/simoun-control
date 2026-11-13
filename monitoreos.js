@@ -74,7 +74,7 @@ function monitorSummary(){
   const ms=state.monitors.map(monitorDefaults),active=ms.filter(m=>m.status!=='BAJA');return{
     active:active.length,
     expected:active.reduce((s,m)=>s+monthlyFor(m,currentMonthKey()),0),
-    overdue:active.reduce((s,m)=>s+monitorDebt(m),0),
+    overdue:ms.reduce((s,m)=>s+monitorDebt(m),0),
     current:active.reduce((s,m)=>s+monitorCurrentDue(m),0)
   }
 }
