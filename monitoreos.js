@@ -23,13 +23,30 @@ function monthRange(from,to){if(!from||!to||from>to)return[];const out=[];let k=
 function monitorDefaults(m){
   m.id=m.id||uid();m.name=m.name||'';m.company=m.company||'';m.contact=m.contact||'';m.phone=m.phone||'';m.whatsapp=m.whatsapp||m.phone||'';m.email=m.email||'';m.address=m.address||'';m.notes=m.notes||'';m.clientNotes=m.clientNotes||'';
   m.monthly=Number(m.monthly||0);m.invoice=m.invoice||'No';m.status=m.status||'ACTIVO';m.startMonth=m.startMonth||MONITOR_START;m.endDate=m.endDate||'';m.habitualMethod=m.habitualMethod||'';m.bankEnding=m.bankEnding||'';
+  m.statusHistory=Array.isArray(m.statusHistory)?m.statusHistory:[];
   m.payments=Array.isArray(m.payments)?m.payments:[];m.monthlyHistory=Array.isArray(m.monthlyHistory)?m.monthlyHistory:[];
   if(!m.monthlyHistory.length&&m.monthly>0)m.monthlyHistory=[{from:m.startMonth||MONITOR_START,amount:m.monthly}];
   m.payments.forEach(p=>{p.id=p.id||uid();p.date=p.date||today();p.amount=Number(p.amount||0);p.periodFrom=p.periodFrom||currentMonthKey();p.periodTo=p.periodTo||p.periodFrom;p.method=p.method||'';p.destination=p.destination||'';p.invoice=p.invoice||'No';p.reference=p.reference||'';p.notes=p.notes||''});
   return m;
 }
 function monthlyFor(m,key){monitorDefaults(m);const hist=m.monthlyHistory.filter(h=>h.from<=key).sort((a,b)=>a.from.localeCompare(b.from));return Number(hist.length?hist[hist.length-1].amount:m.monthly||0)}
-function monitorActiveInMonth(m,key){monitorDefaults(m);if(key<(m.startMonth||MONITOR_START))return false;if(m.status==='BAJA'){const end=m.endDate?monthKey(m.endDate):currentMonthKey();return key<=end}return true}
+function monitorActiveInMonth(m,key){
+  monitorDefaults(m);
+  if(key<(m.startMonth||MONITOR_START))return false;
+  const events=m.statusHistory.filter(e=>e&&e.date&&(e.status==='BAJA'||e.status==='ACTIVO')).sort((a,b)=>a.date.localeCompare(b.date));
+  if(events.length){
+    let active=true;
+    for(const e of events){
+      const month=monthKey(e.date);
+      if(month>key)break;
+      if(e.status==='BAJA'&&month<key)active=false;
+      else if(e.status==='ACTIVO'&&month<=key)active=true;
+    }
+    return active;
+  }
+  if(m.status==='BAJA'){const end=m.endDate?monthKey(m.endDate):currentMonthKey();return key<=end}
+  return true;
+}
 function monitorAllocations(m){
   monitorDefaults(m);const out={};
   [...m.payments].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(p=>{
@@ -74,6 +91,30 @@ function monitorWhatsApp(id){const m=state.monitors.find(x=>x.id===id);if(!m)ret
 
 function saveMonitorClientNotes(id){const m=state.monitors.find(x=>x.id===id),field=document.getElementById('monitorNotes-'+id);if(!m||!field)return;m.clientNotes=field.value.trim();save();}
 
+function changeMonitorStatus(id){
+  const m=state.monitors.find(x=>x.id===id);
+  if(!m)return;
+  monitorDefaults(m);
+  const reactivating=m.status==='BAJA';
+  const message=reactivating
+    ?`¿Reactivar el monitoreo de ${m.name||'este cliente'}?\n\nSe conservarán su expediente y todos sus pagos.`
+    :`¿Dar de baja el monitoreo de ${m.name||'este cliente'}?\n\nEl cliente y sus pagos NO se borrarán. A partir del mes siguiente dejará de acumular mensualidades nuevas.`;
+  if(!confirm(message))return;
+  if(reactivating&&!m.statusHistory.some(x=>x.status==='BAJA'))m.statusHistory.push({date:m.endDate||today(),status:'BAJA'});
+  const status=reactivating?'ACTIVO':'BAJA';
+  m.statusHistory.push({date:today(),status});
+  m.status=status;
+  m.endDate=reactivating?'':today();
+  save();
+  document.getElementById('monitorDlg')?.close();
+}
+function monitorStatusButton(m){
+  return `<button type="button" class="btn sm ${m.status==='BAJA'?'secondary':'danger'}" onclick="changeMonitorStatus('${m.id}')">${m.status==='BAJA'?'↩ Reactivar':'⏸ Dar de baja'}</button>`;
+}
+function monitorStatusHistory(m){
+  const changes=[...(m.statusHistory||[])].filter(e=>e&&e.date&&e.status).sort((a,b)=>b.date.localeCompare(a.date));
+  return changes.length?`<div class="section-title"><h3>Historial del servicio</h3></div><div class="history">${changes.map(e=>`<div class="history-item">${fmt(e.date)} · ${e.status==='BAJA'?'Dado de baja':'Reactivado'}</div>`).join('')}</div>`:'';
+}
 function renderMonitors(){
   const sum=monitorSummary(),q=monitorSearch.trim().toLowerCase(),months=Array.from({length:12},(_,i)=>addMonth(monitorCalendarStart,i));
   const searched=state.monitors.map(monitorDefaults).filter(m=>[m.name,m.company,m.contact,m.phone,m.whatsapp,m.clientNotes].some(v=>(v||'').toLowerCase().includes(q)));
@@ -89,7 +130,7 @@ function renderMonitors(){
       const paidThrough=monitorPaidThrough(m),debt=monitorDebt(m),cur=monitorCurrentDue(m);
       return `<div class="card monitor-card ${m.status==='BAJA'?'monitor-baja':''}"><div class="monitor-card-head"><div><div class="monitor-name">${esc(m.name||'Sin nombre')}</div><div class="muted">${esc(m.company||'')}${m.contact?' · '+esc(m.contact):''}</div>${m.clientNotes?`<div class="notice" style="margin-top:8px"><strong>Notas del cliente:</strong> ${esc(m.clientNotes)}</div>`:''}<div class="badges"><span class="badge ${m.status==='BAJA'?'red':'green'}">${esc(m.status)}</span><span class="badge">${m.invoice==='Sí'?'Factura':'No factura'}</span>${debt>0?`<span class="badge red">Vencido ${money(debt)}</span>`:''}${cur>0?`<span class="badge orange">Mes actual ${money(cur)}</span>`:''}${monitorHasAdvance(m)?'<span class="badge blue">Adelantado</span>':''}</div></div><div class="monitor-money"><small>Mensualidad</small><strong>${money(monthlyFor(m,currentMonthKey()))}</strong><small>Pagado hasta</small><strong>${paidThrough?monthLabel(paidThrough):'Sin pago'}</strong></div></div>
       <div class="field monitor-client-notes" style="margin-top:12px"><label for="monitorNotes-${m.id}">Notas del cliente / forma de trabajo</label><textarea id="monitorNotes-${m.id}" rows="2" placeholder="Acuerdos, instrucciones y detalles de cómo trabajamos con este cliente">${esc(m.clientNotes)}</textarea><button class="btn sm secondary" style="justify-self:start;margin-top:6px" onclick="saveMonitorClientNotes('${m.id}')">💾 Guardar notas</button></div>
-      <div class="split-actions monitor-actions"><button class="btn sm monitor-primary" onclick="newMonitorPayment('${m.id}')">💰 Registrar pago</button><button class="btn sm secondary" onclick="editMonitor('${m.id}')">Editar</button><button class="btn sm light" onclick="monitorWhatsApp('${m.id}')">WhatsApp</button><button class="btn sm danger" onclick="deleteMonitor('${m.id}')">Borrar</button></div>
+      <div class="split-actions monitor-actions"><button class="btn sm monitor-primary" onclick="newMonitorPayment('${m.id}')">💰 Registrar pago</button><button class="btn sm secondary" onclick="editMonitor('${m.id}')">Editar</button>${monitorStatusButton(m)}<button class="btn sm light" onclick="monitorWhatsApp('${m.id}')">WhatsApp</button></div>
       <div class="coverage-wrap"><div class="coverage-strip">${months.map(k=>monitorStatusCell(m,k)).join('')}</div></div></div>`
     }).join('')||'<div class="empty">No hay clientes que coincidan con este filtro.</div>'}</div>`;
 }
@@ -98,7 +139,7 @@ function newMonitor(){editMonitor(null)}
 function editMonitor(id){
   const isNew=!id,m=isNew?blankMonitor():state.monitors.find(x=>x.id===id);if(!m)return;monitorDefaults(m);
   const dlg=document.getElementById('monitorDlg'),body=document.getElementById('monitorDlgBody');document.getElementById('monitorDlgTitle').textContent=isNew?'Nuevo cliente de monitoreo':m.name;
-  body.innerHTML=`<form id="monitorForm"><div class="row"><div class="field"><label>Cliente / servicio</label><input name="name" value="${esc(m.name)}" required></div><div class="field"><label>Empresa / razón social</label><input name="company" value="${esc(m.company)}"></div></div><div class="row"><div class="field"><label>Contacto</label><input name="contact" value="${esc(m.contact)}"></div><div class="field"><label>Teléfono</label><input name="phone" value="${esc(m.phone)}"></div></div><div class="row"><div class="field"><label>WhatsApp</label><input name="whatsapp" value="${esc(m.whatsapp)}"></div><div class="field"><label>Correo</label><input type="email" name="email" value="${esc(m.email)}"></div></div><div class="field"><label>Dirección</label><textarea name="address">${esc(m.address)}</textarea></div><div class="row"><div class="field"><label>Mensualidad</label><input type="number" step="0.01" min="0" name="monthly" value="${m.monthly||0}" required></div><div class="field"><label>Aplicar nueva mensualidad desde</label><input type="month" name="feeEffectiveMonth" value="${currentMonthKey()}" min="${MONITOR_START}"></div></div><div class="row"><div class="field"><label>Factura</label><select name="invoice"><option ${m.invoice==='No'?'selected':''}>No</option><option ${m.invoice==='Sí'?'selected':''}>Sí</option></select></div><div class="field"><label>Estado del servicio</label><select name="status"><option ${m.status==='ACTIVO'?'selected':''}>ACTIVO</option><option ${m.status==='BAJA'?'selected':''}>BAJA</option></select></div></div><div class="row"><div class="field"><label>Control desde</label><input type="month" name="startMonth" value="${m.startMonth||MONITOR_START}" min="${MONITOR_START}"></div><div class="field"><label>Fecha de baja</label><input type="date" name="endDate" value="${m.endDate||''}"></div></div><div class="row"><div class="field"><label>Forma de pago habitual</label><input name="habitualMethod" value="${esc(m.habitualMethod)}" placeholder="Transferencia, efectivo, etc."></div><div class="field"><label>Banco / terminación</label><input name="bankEnding" value="${esc(m.bankEnding)}" placeholder="Ej. Factura ····0208"></div></div><div class="field"><label>Observaciones generales</label><textarea name="notes">${esc(m.notes)}</textarea></div><div class="field"><label>Notas del cliente / forma de trabajo</label><textarea name="clientNotes" placeholder="Acuerdos, instrucciones, horarios especiales o detalles de cómo trabajamos con este cliente">${esc(m.clientNotes)}</textarea></div><div class="toolbar"><button class="btn monitor-primary" type="submit">💾 Guardar cliente</button>${!isNew?`<button type="button" class="btn secondary" onclick="monitorDlg.close();newMonitorPayment('${m.id}')">💰 Registrar pago</button><button type="button" class="btn danger" onclick="deleteMonitor('${m.id}',true)">🗑️ Borrar</button>`:''}</div></form>${!isNew?monitorPaymentsHTML(m):''}`;
+  body.innerHTML=`<form id="monitorForm"><div class="row"><div class="field"><label>Cliente / servicio</label><input name="name" value="${esc(m.name)}" required></div><div class="field"><label>Empresa / razón social</label><input name="company" value="${esc(m.company)}"></div></div><div class="row"><div class="field"><label>Contacto</label><input name="contact" value="${esc(m.contact)}"></div><div class="field"><label>Teléfono</label><input name="phone" value="${esc(m.phone)}"></div></div><div class="row"><div class="field"><label>WhatsApp</label><input name="whatsapp" value="${esc(m.whatsapp)}"></div><div class="field"><label>Correo</label><input type="email" name="email" value="${esc(m.email)}"></div></div><div class="field"><label>Dirección</label><textarea name="address">${esc(m.address)}</textarea></div><div class="row"><div class="field"><label>Mensualidad</label><input type="number" step="0.01" min="0" name="monthly" value="${m.monthly||0}" required></div><div class="field"><label>Aplicar nueva mensualidad desde</label><input type="month" name="feeEffectiveMonth" value="${currentMonthKey()}" min="${MONITOR_START}"></div></div><div class="row"><div class="field"><label>Factura</label><select name="invoice"><option ${m.invoice==='No'?'selected':''}>No</option><option ${m.invoice==='Sí'?'selected':''}>Sí</option></select></div><div class="field"><label>Estado del servicio</label><select name="status"><option ${m.status==='ACTIVO'?'selected':''}>ACTIVO</option><option ${m.status==='BAJA'?'selected':''}>BAJA</option></select></div></div><div class="row"><div class="field"><label>Control desde</label><input type="month" name="startMonth" value="${m.startMonth||MONITOR_START}" min="${MONITOR_START}"></div><div class="field"><label>Fecha de baja</label><input type="date" name="endDate" value="${m.endDate||''}"></div></div><div class="row"><div class="field"><label>Forma de pago habitual</label><input name="habitualMethod" value="${esc(m.habitualMethod)}" placeholder="Transferencia, efectivo, etc."></div><div class="field"><label>Banco / terminación</label><input name="bankEnding" value="${esc(m.bankEnding)}" placeholder="Ej. Factura ····0208"></div></div><div class="field"><label>Observaciones generales</label><textarea name="notes">${esc(m.notes)}</textarea></div><div class="field"><label>Notas del cliente / forma de trabajo</label><textarea name="clientNotes" placeholder="Acuerdos, instrucciones, horarios especiales o detalles de cómo trabajamos con este cliente">${esc(m.clientNotes)}</textarea></div><div class="toolbar"><button class="btn monitor-primary" type="submit">💾 Guardar cliente</button>${!isNew?`<button type="button" class="btn secondary" onclick="monitorDlg.close();newMonitorPayment('${m.id}')">💰 Registrar pago</button>${monitorStatusButton(m)}`:''}</div></form>${!isNew?monitorPaymentsHTML(m)+monitorStatusHistory(m):''}`;
   document.getElementById('monitorForm').onsubmit=e=>{e.preventDefault();const fd=new FormData(e.target),oldMonthly=Number(m.monthly||0);['name','company','contact','phone','whatsapp','email','address','invoice','status','startMonth','endDate','habitualMethod','bankEnding','notes','clientNotes'].forEach(k=>m[k]=fd.get(k)||'');m.startMonth=m.startMonth||MONITOR_START;const newMonthly=Number(fd.get('monthly')||0),eff=fd.get('feeEffectiveMonth')||currentMonthKey();m.monthly=newMonthly;m.monthlyHistory=m.monthlyHistory||[];if(isNew||newMonthly!==oldMonthly||!m.monthlyHistory.length){m.monthlyHistory=m.monthlyHistory.filter(h=>h.from!==eff);m.monthlyHistory.push({from:eff,amount:newMonthly});m.monthlyHistory.sort((a,b)=>a.from.localeCompare(b.from))}if(isNew)state.monitors.unshift(m);save();dlg.close();};dlg.showModal()
 }
 function monitorPaymentsHTML(m){const ps=[...(m.payments||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''));return `<div class="section-title"><h3>Historial de pagos</h3><button class="btn sm monitor-primary" onclick="monitorDlg.close();newMonitorPayment('${m.id}')">+ Pago</button></div><div class="list">${ps.map(p=>`<div class="card payment-row"><div><strong>${fmt(p.date)} · ${money(p.amount)}</strong><div class="muted">${monthLabel(p.periodFrom)}${p.periodTo!==p.periodFrom?' → '+monthLabel(p.periodTo):''} · ${esc(p.method||'Sin método')}${p.invoice==='Sí'?' · Factura':''}</div>${p.notes?`<div class="muted">${esc(p.notes)}</div>`:''}</div><div class="split-actions"><button class="btn sm secondary" onclick="monitorDlg.close();editMonitorPayment('${m.id}','${p.id}')">Editar</button><button class="btn sm danger" onclick="deleteMonitorPayment('${m.id}','${p.id}')">Borrar</button></div></div>`).join('')||'<div class="empty">Aún no hay pagos registrados.</div>'}</div>`}
