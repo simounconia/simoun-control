@@ -82,9 +82,9 @@ function monitorMatchesFilter(m,filter=monitorFilter){
   if(filter==='Todos')return true;
   if(filter==='Activos')return m.status!=='BAJA';
   if(filter==='Baja')return m.status==='BAJA';
-  if(filter==='Vencido')return monitorDebt(m)>0;
-  if(filter==='Por cobrar')return (monitorDebt(m)+monitorCurrentDue(m))>0;
-  if(filter==='Adelantado')return monitorHasAdvance(m);
+  if(filter==='Vencido')return m.status==='ACTIVO'&&monitorDebt(m)>0;
+  if(filter==='Por cobrar')return m.status==='ACTIVO'&&(monitorDebt(m)+monitorCurrentDue(m))>0;
+  if(filter==='Adelantado')return m.status==='ACTIVO'&&monitorHasAdvance(m);
   return true;
 }
 function setMonitorFilter(v){if(!MONITOR_FILTERS.includes(v))return;monitorFilter=v;renderMonitors();if(document.getElementById('monitoreos')?.classList.contains('active'))document.getElementById('monitorResultsHeading')?.scrollIntoView({behavior:'smooth',block:'start'});}
