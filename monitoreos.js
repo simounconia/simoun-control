@@ -87,7 +87,7 @@ function monitorMatchesFilter(m,filter=monitorFilter){
   if(filter==='Adelantado')return monitorHasAdvance(m);
   return true;
 }
-function setMonitorFilter(v){if(!MONITOR_FILTERS.includes(v))return;monitorFilter=v;renderMonitors();if(document.getElementById('monitoreos')?.classList.contains('active'))document.getElementById('monitorResultsList')?.scrollIntoView({behavior:'smooth',block:'start'});}
+function setMonitorFilter(v){if(!MONITOR_FILTERS.includes(v))return;monitorFilter=v;renderMonitors();if(document.getElementById('monitoreos')?.classList.contains('active'))document.getElementById('monitorResultsHeading')?.scrollIntoView({behavior:'smooth',block:'start'});}
 function setMonitorSearch(v){
   monitorSearch=v;
   const active=document.activeElement;
@@ -126,24 +126,43 @@ function monitorStatusHistory(m){
   const changes=[...(m.statusHistory||[])].filter(e=>e&&e.date&&e.status).sort((a,b)=>b.date.localeCompare(a.date));
   return changes.length?`<div class="section-title"><h3>Historial del servicio</h3></div><div class="history">${changes.map(e=>`<div class="history-item">${fmt(e.date)} · ${e.status==='BAJA'?'Dado de baja':'Reactivado'}</div>`).join('')}</div>`:'';
 }
+function monitorSummaryCard(m){
+  const overdue=monitorDebt(m),currentDue=monitorCurrentDue(m),totalDue=overdue+currentDue;
+  const paidThrough=monitorPaidThrough(m);
+  const detail=monitorFilter==='Vencido'
+    ?`<strong class="badge red">Adeudo vencido: ${money(overdue)}</strong>`
+    :monitorFilter==='Por cobrar'
+      ?`<strong class="badge orange">Total pendiente: ${money(totalDue)}</strong>`
+      :monitorFilter==='Adelantado'
+        ?`<strong class="badge blue">Cubierto hasta: ${paidThrough?monthLabel(paidThrough):'Revisar pagos futuros'}</strong>`
+        :monitorFilter==='Baja'
+          ?`<span class="badge red">Baja ${m.endDate?fmt(m.endDate):'sin fecha registrada'}</span>`
+          :`<strong class="badge green">Monitoreo activo</strong>`;
+  return `<div class="card monitor-card ${m.status==='BAJA'?'monitor-baja':''}">
+    <div class="client"><div><strong class="monitor-name">${esc(m.name||'Sin nombre')}</strong><div class="muted">${esc(m.company||'')}${m.contact?' · '+esc(m.contact):''}</div><div class="muted">${esc(m.phone||'')}</div><div class="badges">${detail}${monitorFilter==='Por cobrar'&&overdue>0?`<span class="badge red">De meses anteriores: ${money(overdue)}</span>`:''}</div></div><div class="monitor-money"><small>Mensualidad</small><strong>${money(monthlyFor(m,currentMonthKey()))}</strong></div></div>
+    <div class="split-actions monitor-actions"><button class="btn sm monitor-primary" onclick="editMonitor('${m.id}')">Ver ficha / editar</button><button class="btn sm secondary" onclick="newMonitorPayment('${m.id}')">Registrar pago</button>${monitorStatusButton(m)}<button class="btn sm light" onclick="monitorWhatsApp('${m.id}')">WhatsApp</button></div>
+  </div>`;
+}
 function renderMonitors(){
   const sum=monitorSummary(),q=monitorSearch.trim().toLowerCase(),months=Array.from({length:12},(_,i)=>addMonth(monitorCalendarStart,i));
   const searched=state.monitors.map(monitorDefaults).filter(m=>[m.name,m.company,m.contact,m.phone,m.whatsapp,m.clientNotes].some(v=>(v||'').toLowerCase().includes(q)));
   const counts=Object.fromEntries(MONITOR_FILTERS.map(f=>[f,searched.filter(m=>monitorMatchesFilter(m,f)).length]));
   const arr=searched.filter(m=>monitorMatchesFilter(m));
   document.getElementById('monitoreos').innerHTML=`
-    <div class="monitor-hero"><div><h2>🖥️ Monitoreos · Mensualidades</h2><div>Control confiable desde octubre de 2026. Pagos, anticipos, adeudos y cobertura por mes.</div></div><button class="btn monitor-primary" onclick="newMonitor()">+ Cliente de monitoreo</button></div>
+    <div class="monitor-hero"><div><h2>🖥️ Monitoreos · Mensualidades</h2><small style="opacity:.85">Filtros actualizados · 13 nov 2026</small><div>Control confiable desde octubre de 2026. Pagos, anticipos, adeudos y cobertura por mes.</div></div><button class="btn monitor-primary" onclick="newMonitor()">+ Cliente de monitoreo</button></div>
     <div class="grid monitor-summary"><div class="card"><div class="muted">Servicios activos</div><div class="metric">${sum.active}</div></div><div class="card"><div class="muted">Ingreso mensual esperado</div><div class="metric">${money(sum.expected)}</div></div><div class="card"><div class="muted">Adeudo vencido</div><div class="metric">${money(sum.overdue)}</div></div><div class="card"><div class="muted">Por cobrar mes actual</div><div class="metric">${money(sum.current)}</div></div></div>
     <div class="card monitor-tools"><div class="toolbar"><input class="search" placeholder="Buscar por cliente, empresa, contacto o teléfono" value="${esc(monitorSearch)}" oninput="setMonitorSearch(this.value)"><button class="btn monitor-primary" onclick="newMonitor()">+ Cliente</button></div><div class="filters">${MONITOR_FILTERS.map(f=>`<button class="filter monitor-filter ${monitorFilter===f?'active':''}" onclick="setMonitorFilter(${JSON.stringify(f)})">${f} (${counts[f]})</button>`).join('')}</div></div>
-    <div class="calendar-head monitor-calendar-head"><button class="btn secondary" onclick="moveMonitorMonths(-6)">‹ 6 meses</button><h3>${monthLabel(months[0])} — ${monthLabel(months[months.length-1])}</h3><button class="btn secondary" onclick="moveMonitorMonths(6)">6 meses ›</button></div>
+    <div class="section-title" id="monitorResultsHeading" style="scroll-margin-top:100px"><h3>Clientes · ${esc(monitorFilter)}</h3><span class="muted">${arr.length} clientes</span></div>
+    ${monitorFilter==='Todos'?`    <div class="calendar-head monitor-calendar-head"><button class="btn secondary" onclick="moveMonitorMonths(-6)">‹ 6 meses</button><h3>${monthLabel(months[0])} — ${monthLabel(months[months.length-1])}</h3><button class="btn secondary" onclick="moveMonitorMonths(6)">6 meses ›</button></div>
     <div class="monitor-legend"><span class="legend paid">Pagado</span><span class="legend advance">Adelantado</span><span class="legend partial">Parcial</span><span class="legend overdue">Vencido</span><span class="legend due">Por cobrar</span><span class="legend future">Futuro</span><span class="legend inactive">Baja</span></div>
-    <div class="section-title"><h3>Clientes · ${esc(monitorFilter)}</h3><span class="muted">${arr.length} clientes</span></div><div class="list monitor-list" id="monitorResultsList" style="scroll-margin-top:100px">${arr.map(m=>{
+`:''}
+    <div class="list monitor-list" id="monitorResultsList" style="scroll-margin-top:100px">${arr.length?(monitorFilter==='Todos'?arr.map(m=>{
       const paidThrough=monitorPaidThrough(m),debt=monitorDebt(m),cur=monitorCurrentDue(m);
       return `<div class="card monitor-card ${m.status==='BAJA'?'monitor-baja':''}"><div class="monitor-card-head"><div><div class="monitor-name">${esc(m.name||'Sin nombre')}</div><div class="muted">${esc(m.company||'')}${m.contact?' · '+esc(m.contact):''}</div>${m.clientNotes?`<div class="notice" style="margin-top:8px"><strong>Notas del cliente:</strong> ${esc(m.clientNotes)}</div>`:''}<div class="badges"><span class="badge ${m.status==='BAJA'?'red':'green'}">${esc(m.status)}</span><span class="badge">${m.invoice==='Sí'?'Factura':'No factura'}</span>${debt>0?`<span class="badge red">Vencido ${money(debt)}</span>`:''}${cur>0?`<span class="badge orange">Mes actual ${money(cur)}</span>`:''}${monitorHasAdvance(m)?'<span class="badge blue">Adelantado</span>':''}</div></div><div class="monitor-money"><small>Mensualidad</small><strong>${money(monthlyFor(m,currentMonthKey()))}</strong><small>Pagado hasta</small><strong>${paidThrough?monthLabel(paidThrough):'Sin pago'}</strong></div></div>
       <div class="field monitor-client-notes" style="margin-top:12px"><label for="monitorNotes-${m.id}">Notas del cliente / forma de trabajo</label><textarea id="monitorNotes-${m.id}" rows="2" placeholder="Acuerdos, instrucciones y detalles de cómo trabajamos con este cliente">${esc(m.clientNotes)}</textarea><button class="btn sm secondary" style="justify-self:start;margin-top:6px" onclick="saveMonitorClientNotes('${m.id}')">💾 Guardar notas</button></div>
       <div class="split-actions monitor-actions"><button class="btn sm monitor-primary" onclick="newMonitorPayment('${m.id}')">💰 Registrar pago</button><button class="btn sm secondary" onclick="editMonitor('${m.id}')">Editar</button>${monitorStatusButton(m)}<button class="btn sm light" onclick="monitorWhatsApp('${m.id}')">WhatsApp</button></div>
       <div class="coverage-wrap"><div class="coverage-strip">${months.map(k=>monitorStatusCell(m,k)).join('')}</div></div></div>`
-    }).join('')||'<div class="empty">No hay clientes que coincidan con este filtro.</div>'}</div>`;
+    }).join(''):arr.map(m=>monitorSummaryCard(m)).join('')):'<div class="empty">No hay clientes que coincidan con este filtro.</div>'}</div>`;
 }
 function blankMonitor(){return monitorDefaults({id:uid(),name:'',company:'',contact:'',phone:'',whatsapp:'',email:'',address:'',notes:'',clientNotes:'',monthly:0,invoice:'No',status:'ACTIVO',startMonth:MONITOR_START,endDate:'',habitualMethod:'',bankEnding:'',monthlyHistory:[],payments:[]})}
 function newMonitor(){editMonitor(null)}
