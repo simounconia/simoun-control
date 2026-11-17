@@ -73,6 +73,18 @@ function docClientFields(){
     '<div class="row">'+docInput('clientWhatsApp','WhatsApp','','WhatsApp del cliente')+docInput('clientEmail','Correo','','Correo de contacto','email')+'</div>'+ 
     '<div class="row">'+docInput('clientAddress','Domicilio del cliente','','Dirección (opcional)')+'</div>';
 }
+function docQuoteContactValue(client){
+  const c=client||{};
+  return [...new Set([c.contact,c.phone,c.whatsapp].map(x=>String(x||'').trim()).filter(Boolean))].join(' · ');
+}
+function docQuoteClientFields(client={}){
+  const c=client||{};
+  return '<div class="row">'+docInput('clientName','Cliente',c.name||'','Nombre o razón social')+
+    docInput('projectName','Nombre del proyecto (opcional)',c.projectName||'','Nombre del proyecto')+'</div>'+
+    '<div class="row">'+docInput('clientContact','Contacto',docQuoteContactValue(c),'Nombre, teléfono o ambos')+
+    docInput('clientEmail','Correo',c.email||'','Correo del cliente','email')+'</div>'+
+    '<div class="row">'+docInput('clientAddress','Domicilio del cliente',c.address||'','Dirección (opcional)')+'</div>';
+}
 function docQuoteTermsFields(values={}){
   const t=values||{};
   return '<div class="doc-subhead">Condiciones de la cotización (opcionales)</div>'+
@@ -91,13 +103,31 @@ function docLineRow(){
 function docOptionCard(n){
   return '<article class="doc-option" data-option><div class="doc-option-head"><strong>Opción '+n+'</strong><button class="btn sm danger" type="button" onclick="docRemoveOption(this)">Quitar opción</button></div>'+
     '<div class="row">'+docInput('optionTitle','Nombre de la opción','','Ej. Básica, recomendada, premium')+docInput('optionDescription','Descripción breve','','Alcance o diferencia')+'</div>'+
-    '<div class="doc-lines-head"><strong>Conceptos</strong><span>Captura los precios antes de IVA.</span></div><div data-lines>'+docLineRow()+'</div><button class="btn sm secondary" type="button" onclick="docAddLine(this)">+ Agregar concepto</button></article>';
+    '<div class="doc-lines-head"><strong>Conceptos</strong><span>Cantidad y precio antes de IVA.</span></div><div data-lines>'+docLineRow()+'</div><button class="btn sm secondary" type="button" onclick="docAddLine(this)">+ Agregar concepto</button><div class="doc-option-total" data-option-total aria-live="polite"></div></article>';
 }
 function docItems(kind){
   return kind==='quote'?'<div class="doc-option-list" id="quoteOptions">'+docOptionCard(1)+'</div><button class="btn secondary" type="button" onclick="docAddOption()">+ Agregar otra opción</button>':
     '<div class="doc-lines-head"><strong>Conceptos de la remisión</strong><span>Captura los precios antes de IVA.</span></div><div class="doc-remit-lines" data-lines>'+docLineRow()+'</div><button class="btn secondary" type="button" onclick="docAddLine(this)">+ Agregar concepto</button>';
 }
+function docQuoteNewForm(){
+  return '<form class="doc-form doc-quote-form" id="quoteForm" onsubmit="docCreate(event,\'quote\')">'+
+    '<div class="doc-form-title"><h2>Nueva cotización</h2><span class="badge blue">Folio siguiente: '+esc(docNextFolio('quote'))+'</span></div>'+
+    '<section class="doc-box"><h3>1. Datos generales</h3>'+
+      '<div class="row"><label class="field"><span>Fecha</span><input name="date" type="date" value="'+docDate()+'" required></label>'+
+      '<label class="field"><span>Cliente registrado (opcional)</span><select name="clientSelect" onchange="docFillClient(\'quote\',this)">'+docClientOptions()+'</select></label></div></section>'+
+    '<section class="doc-box"><h3>2. Datos del cliente</h3>'+docQuoteClientFields()+'</section>'+
+    '<section class="doc-box"><h3>3. Productos y servicios</h3>'+
+      docItems('quote')+
+      '<label class="switch-line doc-iva-toggle"><input type="checkbox" name="includeIVA"><span>Incluir IVA del 16% (calcular automáticamente)</span></label></section>'+
+    '<section class="doc-box"><h3>4. Condiciones de la cotización</h3>'+docQuoteTermsFields()+'</section>'+
+    '<section class="doc-box"><h3>5. Notas y firma</h3>'+
+      '<label class="field"><span>Notas para el cliente</span><textarea name="notes" placeholder="Información adicional visible para el cliente"></textarea></label>'+
+      docSignatureCheckbox(false)+
+      '<label class="field doc-private"><span>Nota privada para SIMOUN</span><textarea name="privateNote" placeholder="Costos, proveedor y datos internos; no aparece en el PDF."></textarea></label></section>'+
+    '<button class="btn doc-create" type="submit">Guardar cotización y asignar folio</button></form>';
+}
 function docForm(kind){
+  if(kind==='quote')return docQuoteNewForm();
   const quote=kind==='quote',label=quote?'cotización':'remisión',id=quote?'quote':'remit';
   return '<form class="doc-form" id="'+id+'Form" onsubmit="docCreate(event,\''+kind+'\')"><div class="doc-form-title"><h2>Nueva '+label+'</h2><span class="badge blue">Folio siguiente: '+esc(docNextFolio(kind))+'</span></div>'+
     '<div class="row"><label class="field"><span>Fecha</span><input name="date" type="date" value="'+docDate()+'" required></label><label class="field"><span>Seleccionar cliente existente</span><select name="clientSelect" onchange="docFillClient(\''+kind+'\',this)">'+docClientOptions()+'</select></label></div>'+
@@ -116,7 +146,7 @@ function docRender(kind){
     docCompanyForm()+(quote?docSignatureSettings():'')+'<div class="doc-layout"><section class="card doc-create-card">'+docForm(kind)+'</section><section class="card doc-history"><div class="doc-history-head"><h2>Historial de '+title.toLowerCase()+'</h2><span class="muted">Folios consecutivos</span></div>'+
     (items.length?items.slice().reverse().map(d=>docHistoryCard(d,kind)).join(''):'<div class="empty">Todavía no hay '+title.toLowerCase()+' guardadas.</div>')+'</section></div>';
 }
-function renderQuotes(){docRender('quote')}
+function renderQuotes(){docRender('quote');const f=document.getElementById('quoteForm');if(f){f.addEventListener('input',()=>docUpdateQuoteTotals(f));f.addEventListener('change',()=>docUpdateQuoteTotals(f));docUpdateQuoteTotals(f)}}
 function renderRemissions(){docRender('remission')}
 function docSaveCompany(e){
   e.preventDefault();const f=new FormData(e.currentTarget),c=docStore().company;
@@ -128,7 +158,7 @@ function docFillClient(kind,select){
   const form=document.getElementById(kind==='quote'?'quoteForm':'remitForm');if(!form)return;
   const set=(key,value)=>{if(form.elements[key])form.elements[key].value=value||''};
   set('clientName',c.name);set('projectName',c.projectName);set('clientContact',c.contact);
-  set('clientPhone',c.phone);set('clientWhatsApp',c.whatsapp);set('clientEmail',c.email||'');set('clientAddress',c.address||'');
+  if(kind==='quote')set('clientContact',docQuoteContactValue(c));else{set('clientPhone',c.phone);set('clientWhatsApp',c.whatsapp)}set('clientEmail',c.email||'');set('clientAddress',c.address||'');
 }
 function docAddLine(button){
   const form=button.closest('form'),holder=button.parentElement.querySelector('[data-lines]')||form.querySelector('.doc-remit-lines');
@@ -140,11 +170,11 @@ function docRemoveLine(button){
 }
 function docAddOption(){
   const holder=document.getElementById('quoteOptions');
-  if(holder)holder.insertAdjacentHTML('beforeend',docOptionCard(holder.querySelectorAll('[data-option]').length+1));
+  if(holder){holder.insertAdjacentHTML('beforeend',docOptionCard(holder.querySelectorAll('[data-option]').length+1));docUpdateQuoteTotals(holder.closest('form'));}
 }
 function docRemoveOption(button){
   const holder=document.getElementById('quoteOptions');
-  if(holder&&holder.querySelectorAll('[data-option]').length>1)button.closest('[data-option]').remove();
+  if(holder&&holder.querySelectorAll('[data-option]').length>1){button.closest('[data-option]').remove();docUpdateQuoteTotals(holder.closest('form'))}
   else alert('La cotización debe conservar al menos una opción.');
 }
 function docReadLines(holder){
@@ -157,7 +187,7 @@ function docReadLines(holder){
 function docCreate(e,kind){
   e.preventDefault();const form=e.currentTarget,fd=new FormData(form),quote=kind==='quote';
   const client={name:String(fd.get('clientName')||'').trim(),projectName:String(fd.get('projectName')||'').trim(),
-    contact:String(fd.get('clientContact')||'').trim(),phone:String(fd.get('clientPhone')||'').trim(),whatsapp:String(fd.get('clientWhatsApp')||'').trim(),email:String(fd.get('clientEmail')||'').trim(),address:String(fd.get('clientAddress')||'').trim()};
+    contact:String(fd.get('clientContact')||'').trim(),phone:quote?'':String(fd.get('clientPhone')||'').trim(),whatsapp:quote?'':String(fd.get('clientWhatsApp')||'').trim(),email:String(fd.get('clientEmail')||'').trim(),address:String(fd.get('clientAddress')||'').trim()};
   if(!client.name){alert('Escribe el nombre del cliente o razón social.');return}
   let options=[];
   if(quote){
@@ -220,32 +250,38 @@ function docRemoveEditQuoteOption(button){
 }
 function docUpdateQuoteTotals(form){
   if(!form)return;
-  const iva=form.elements.includeIVA?.checked||false;
+  const iva=!!form.elements.includeIVA?.checked;
   form.querySelectorAll('[data-option]').forEach(card=>{
-    const totals=docTotals(docReadLines(card.querySelector('[data-lines]')),iva);
+    const lines=docReadLines(card.querySelector('[data-lines]'));
+    const totals=docTotals(lines,iva);
     const target=card.querySelector('[data-option-total]');
-    if(target)target.textContent='Subtotal: '+money(totals.subtotal)+(iva?' · IVA: '+money(totals.tax):' · Sin IVA')+' · Total: '+money(totals.total);
+    if(!target)return;
+    target.innerHTML=
+      '<div><span>Subtotal</span><strong>'+money(totals.subtotal)+'</strong></div>'+
+      (iva?'<div><span>IVA (16%)</span><strong>'+money(totals.tax)+'</strong></div>':'')+
+      '<div class="doc-option-grand"><span>Total'+(iva?'':' (sin IVA)')+'</span><strong>'+money(totals.total)+'</strong></div>';
   });
 }
+
 function docEditQuote(id){
   const d=docFind('quote',id);if(!d)return;
   let dlg=document.getElementById('docEditQuoteDlg');
   if(!dlg){dlg=document.createElement('dialog');dlg.id='docEditQuoteDlg';dlg.style.maxWidth='900px';document.body.appendChild(dlg)}
   const client=d.client||{},options=d.options?.length?d.options:[{title:'Opción 1',description:'',lines:[{description:'',quantity:1,unitPrice:0}]}];
-  dlg.innerHTML='<div class="modal-head"><strong>Editar cotización · '+esc(d.folio)+'</strong><button class="close" type="button" aria-label="Cerrar">×</button></div><div class="modal-body"><form class="doc-form" id="docEditQuoteForm">'+
-    '<label class="field"><span>Fecha</span><input name="date" type="date" value="'+esc(d.date||docDate())+'" required></label>'+
-    '<div class="doc-subhead">Datos del cliente</div><div class="row">'+docInput('clientName','Cliente',client.name,'Nombre o razón social')+docInput('projectName','Nombre del proyecto',client.projectName,'Proyecto')+'</div>'+
-    '<div class="row">'+docInput('clientContact','Contacto',client.contact,'Persona de contacto')+docInput('clientPhone','Teléfono',client.phone,'Teléfono')+'</div>'+
-    '<div class="row">'+docInput('clientWhatsApp','WhatsApp',client.whatsapp,'WhatsApp')+docInput('clientEmail','Correo',client.email,'Correo','email')+'</div>'+
-    '<div class="row">'+docInput('clientAddress','Domicilio del cliente',client.address,'Dirección (opcional)')+'</div>'+ 
-    '<div class="doc-subhead">Opciones y conceptos</div><div class="doc-option-list" id="quoteEditOptions">'+options.map((o,n)=>docQuoteEditOption(o,n+1)).join('')+'</div>'+
-    '<button class="btn secondary" type="button" onclick="docAddEditQuoteOption()">+ Agregar otra opción</button>'+
-    '<label class="switch-line"><input type="checkbox" name="includeIVA" '+(d.includeIVA?'checked':'')+'><span>Incluir IVA del 16%</span></label>'+
-    docQuoteTermsFields(d.terms||{})+
-    '<label class="field"><span>Notas para el cliente</span><textarea name="notes">'+esc(d.notes||'')+'</textarea></label>'+
-    docSignatureCheckbox(!!d.includeSignature)+
-    '<label class="field doc-private"><span>Nota privada para SIMOUN</span><textarea name="privateNote">'+esc(d.privateNote||'')+'</textarea></label>'+
-    '<div class="toolbar"><button class="btn" type="submit">Guardar cambios</button><button class="btn secondary" type="button" data-cancel>Cerrar</button></div></form></div>';
+  dlg.innerHTML='<div class="modal-head"><strong>Editar cotización · '+esc(d.folio)+'</strong><button class="close" type="button" aria-label="Cerrar">×</button></div>'+
+    '<div class="modal-body"><form class="doc-form doc-quote-form" id="docEditQuoteForm">'+
+      '<section class="doc-box"><h3>1. Datos generales</h3><label class="field"><span>Fecha</span><input name="date" type="date" value="'+esc(d.date||docDate())+'" required></label></section>'+
+      '<section class="doc-box"><h3>2. Datos del cliente</h3>'+docQuoteClientFields(client)+'</section>'+
+      '<section class="doc-box"><h3>3. Productos y servicios</h3>'+
+        '<div class="doc-option-list" id="quoteEditOptions">'+options.map((o,n)=>docQuoteEditOption(o,n+1)).join('')+'</div>'+
+        '<button class="btn secondary" type="button" onclick="docAddEditQuoteOption()">+ Agregar otra opción</button>'+
+        '<label class="switch-line doc-iva-toggle"><input type="checkbox" name="includeIVA" '+(d.includeIVA?'checked':'')+'><span>Incluir IVA del 16% (calcular automáticamente)</span></label></section>'+
+      '<section class="doc-box"><h3>4. Condiciones de la cotización</h3>'+docQuoteTermsFields(d.terms||{})+'</section>'+
+      '<section class="doc-box"><h3>5. Notas y firma</h3>'+
+        '<label class="field"><span>Notas para el cliente</span><textarea name="notes">'+esc(d.notes||'')+'</textarea></label>'+
+        docSignatureCheckbox(!!d.includeSignature)+
+        '<label class="field doc-private"><span>Nota privada para SIMOUN</span><textarea name="privateNote">'+esc(d.privateNote||'')+'</textarea></label></section>'+
+      '<div class="toolbar"><button class="btn" type="submit">Guardar cambios</button><button class="btn secondary" type="button" data-cancel>Cerrar</button></div></form></div>';
   const form=dlg.querySelector('#docEditQuoteForm'),close=()=>dlg.close();
   dlg.querySelector('.close').addEventListener('click',close);
   dlg.querySelector('[data-cancel]').addEventListener('click',close);
@@ -255,6 +291,7 @@ function docEditQuote(id){
   docUpdateQuoteTotals(form);
   if(!dlg.open)dlg.showModal();
 }
+
 function docUpdateQuote(e,id){
   e.preventDefault();const d=docFind('quote',id);if(!d)return;
   const form=e.currentTarget,fd=new FormData(form),name=String(fd.get('clientName')||'').trim();
@@ -266,7 +303,7 @@ function docUpdateQuote(e,id){
   if(options.some(o=>!o.lines.length)){alert('Agrega al menos un concepto en cada opción.');return}
   d.date=String(fd.get('date')||d.date||docDate());
   d.client={...d.client,name,projectName:String(fd.get('projectName')||'').trim(),contact:String(fd.get('clientContact')||'').trim(),
-    phone:String(fd.get('clientPhone')||'').trim(),whatsapp:String(fd.get('clientWhatsApp')||'').trim(),email:String(fd.get('clientEmail')||'').trim(),address:String(fd.get('clientAddress')||'').trim()};
+    phone:'',whatsapp:'',email:String(fd.get('clientEmail')||'').trim(),address:String(fd.get('clientAddress')||'').trim()};
   d.options=options;d.terms=docReadQuoteTerms(fd);d.includeIVA=fd.get('includeIVA')==='on';
   d.notes=String(fd.get('notes')||'').trim();d.privateNote=String(fd.get('privateNote')||'').trim();
   const useSignature=fd.get('includeSignature')==='on';
@@ -319,7 +356,7 @@ function docFilename(d){
   const folio=String(d.folio||'SIN-FOLIO');
   const cliente=String(d.client?.name||'Sin cliente');
   const clean=value=>value.normalize('NFC').replace(/[\\/:*?"<>|\\x00-\\x1F]/g,'').replace(/\s+/g,' ').trim().replace(/[. ]+$/g,'').slice(0,100);
-  return clean(folio)+' - '+(clean(cliente)||'Sin cliente')+' - SIMOUN';
+  return (clean(cliente)||'Sin cliente')+' - SIMOUN - '+clean(folio);
 }
 function docPublicHTML(d,kind){
   const quote=kind==='quote',title=quote?'Cotización':'Remisión';
@@ -463,4 +500,4 @@ function docStyle(){
   s.textContent='#cotizaciones .doc-hero,#remisiones .doc-hero{display:flex;justify-content:space-between;align-items:center;gap:15px;background:linear-gradient(135deg,#0b2c55,#246b91);color:#fff;border-radius:18px;padding:20px;margin-bottom:14px}#cotizaciones .doc-hero h1,#remisiones .doc-hero h1{margin:5px 0;font-size:24px}#cotizaciones .doc-hero p,#remisiones .doc-hero p{margin:0;opacity:.85}#cotizaciones .doc-hero>div:first-child>span,#remisiones .doc-hero>div:first-child>span{font-size:11px;letter-spacing:.12em;font-weight:800}.doc-total{font-size:24px;font-weight:850;text-align:center;min-width:90px}.doc-total small{display:block;font-size:11px;font-weight:600;color:#fff}.doc-company{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:14px}.doc-company summary{font-weight:800;cursor:pointer;color:var(--brand)}.doc-company form{display:grid;gap:10px;margin-top:12px}.doc-company p{margin:8px 0}.doc-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);gap:14px;align-items:start}.doc-form{display:grid;gap:12px}.doc-form-title,.doc-option-head,.doc-history-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.doc-form-title h2,.doc-history-head h2{margin:0}.doc-subhead{font-weight:850;color:#164a78;border-bottom:1px solid var(--line);padding-bottom:6px;margin-top:4px}.doc-form .field{display:grid;gap:5px}.doc-form .field>span{font-size:12px;color:var(--muted);font-weight:750}.doc-form textarea{min-height:76px;padding:10px;border:1px solid var(--line);border-radius:10px;resize:vertical}.doc-option{border:1px solid var(--line);border-radius:13px;background:#f9fbfd;padding:12px;margin:9px 0;display:grid;gap:10px}.doc-option-head strong{color:#164a78}.doc-lines-head{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:13px;margin:8px 0}.doc-lines-head span{color:var(--muted);font-size:11px}.doc-line{display:grid;grid-template-columns:minmax(120px,1fr) 90px minmax(130px,170px) auto;gap:7px;margin:7px 0}.doc-line input{width:100%;min-width:0;padding:9px;border:1px solid var(--line);border-radius:9px}.doc-private{border:1px dashed #d59b46;background:#fffaf1;padding:10px;border-radius:11px}.doc-private>span{color:#855000!important}.doc-create{min-height:48px}.doc-history{display:grid;gap:10px}.doc-history-head{margin-bottom:4px}.doc-history-card{display:grid;gap:10px;border:1px solid var(--line);border-radius:12px;padding:11px;background:#fbfcfe}.doc-history-info{display:grid;gap:3px;min-width:0}.doc-history-info>strong{color:#0b2c55}.doc-history-info>span{font-size:13px}.doc-history-info small{font-size:11px;color:var(--muted)}.doc-private-badge{color:#855000!important}.doc-history-card .split-actions{justify-content:flex-start}.doc-remittance-control{display:grid;gap:8px;padding:10px;background:#fffaf1;border:1px solid #f0dfbb;border-radius:11px}.doc-remittance-control>strong{color:#855000}.doc-remittance-control textarea{min-height:55px;padding:9px;border:1px solid var(--line);border-radius:9px;resize:vertical}@media(max-width:850px){.doc-layout{grid-template-columns:1fr}}@media(max-width:600px){#cotizaciones .doc-hero,#remisiones .doc-hero{padding:15px}#cotizaciones .doc-hero h1,#remisiones .doc-hero h1{font-size:21px}.doc-line{grid-template-columns:1fr 1fr auto}.doc-line input:first-child{grid-column:1/-1}.doc-line .btn{min-height:40px}.doc-history-card{gap:8px}}';
   document.head.appendChild(s);
 }
-docStyle();purchaseStyle();renderQuotes();renderRemissions();renderPurchases();
+docStyle();purchaseStyle();(function(){const el=document.createElement('style');el.textContent="\n.doc-quote-form{display:grid;gap:16px}\n.doc-quote-form .doc-box{display:grid;gap:13px;border:1px solid #cbdced;border-radius:16px;background:linear-gradient(180deg,#fff,#fbfdff);padding:16px;box-shadow:0 2px 8px rgba(21,65,116,.055);min-width:0}\n.doc-quote-form .doc-box>h3{margin:0;color:#0c4486;font-size:17px;font-weight:850;padding:0 0 11px;border-bottom:2px solid #c4dcee}\n.doc-quote-form .doc-subhead{font-size:12px;font-weight:750;color:#54728c}\n.doc-quote-form .doc-option{background:#f5f9fd;border:1px solid #d7e4f0;padding:14px}\n.doc-quote-form .doc-option-head strong{font-size:15px}\n.doc-quote-form .doc-lines-head{margin-top:5px}\n.doc-quote-form .doc-option-total{display:grid;gap:0;margin-top:12px;border-radius:11px;overflow:hidden;border:1px solid #b9cbe0;background:#fff}\n.doc-quote-form .doc-option-total>div{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 12px;font-size:13px;border-bottom:1px solid #e5eef7;color:#254568}\n.doc-quote-form .doc-option-total .doc-option-grand{background:#0b478f;color:#fff;font-size:17px;font-weight:800;padding:11px 13px;border-bottom:0}\n.doc-quote-form .doc-option-total strong{white-space:nowrap;font-variant-numeric:tabular-nums}\n.doc-quote-form .doc-iva-toggle{background:#eaf2fb;border:1px solid #c9dff4;border-radius:11px;padding:12px}\n#docEditQuoteDlg .modal-body{max-height:min(79vh,850px);overflow:auto}\n@media(max-width:600px){.doc-quote-form .doc-box{padding:12px}.doc-quote-form .doc-box>h3{font-size:15px}}\n";document.head.appendChild(el)})();renderQuotes();renderRemissions();renderPurchases();
