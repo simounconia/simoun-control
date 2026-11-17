@@ -353,10 +353,12 @@ function docUpdateRemission(e,id){
   save();document.getElementById('docEditRemissionDlg')?.close();renderRemissions();
 }
 function docFilename(d){
-  const folio=String(d.folio||'SIN-FOLIO');
-  const cliente=String(d.client?.name||'Sin cliente');
-  const clean=value=>value.normalize('NFC').replace(/[\\/:*?"<>|\\x00-\\x1F]/g,'').replace(/\s+/g,' ').trim().replace(/[. ]+$/g,'').slice(0,100);
-  return (clean(cliente)||'Sin cliente')+' - SIMOUN - '+clean(folio);
+  const clean=value=>String(value||'').normalize('NFC')
+    .replace(/[^\p{L}\p{N}\p{M} ._()-]/gu,'')
+    .replace(/\s+/g,' ').trim().replace(/[. ]+$/g,'').slice(0,100);
+  const cliente=clean(d.client?.name||'Sin cliente')||'Sin cliente';
+  const folio=clean(d.folio||'SIN-FOLIO')||'SIN-FOLIO';
+  return cliente+' - SIMOUN - '+folio;
 }
 function docPublicHTML(d,kind){
   const quote=kind==='quote',title=quote?'Cotización':'Remisión';
