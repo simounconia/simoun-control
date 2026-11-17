@@ -55,8 +55,8 @@ function simounDocPage(title,folio,date,company,contents){
   const companyText=company||{};
   return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
   '<title>'+simounDocText(title+' '+(folio||''))+'</title><style>'+simounDocStyle()+'</style></head>'+
-  '<body><div class="top-accent"></div>'+
-  '<header class="brand-row"><div class="brand-left">'+logo+'</div><div class="brand-right"><b>SIMOUN · Control Operativo</b><small>'+simounDocText(SIMOUN_DOC_SLOGAN)+'</small></div></header>'+
+  '<body><main class="simoun-pdf-root"><div class="top-accent"></div>'+
+  '<header class="brand-row"><div class="brand-left">'+logo+'</div><div class="brand-right"><b>Seguridad electrónica</b><small>'+simounDocText(SIMOUN_DOC_SLOGAN)+'</small></div></header>'+
   '<div class="titlebar"><h1>'+simounDocText(title.toUpperCase())+'</h1><div class="rule"></div>'+
   '<div class="folio"><div><span>Folio:</span><b>'+simounDocText(folio)+'</b></div>'+
   '<div><span>Fecha:</span><b>'+simounDocDate(date)+'</b></div></div></div>'+
@@ -64,7 +64,7 @@ function simounDocPage(title,folio,date,company,contents){
   '<footer class="footer"><span><strong>Dirección</strong><br>'+simounDocText(companyText.address||SIMOUN_DOC_ADDRESS)+'</span>'+
   '<span><strong>WhatsApp / Teléfono</strong><br>'+simounDocText(companyText.phone||SIMOUN_DOC_PHONE)+
   (simounDocHas(companyText.email)?'<br>'+simounDocText(companyText.email):'')+'</span></footer>'+
-  '</body></html>';
+  '</main></body></html>';
 }
 function simounRemissionHTML(d){
   const c=d.client||{};
