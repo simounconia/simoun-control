@@ -381,7 +381,9 @@ async function downloadDocumentPdf(html,filename,button){
   if(button){button.disabled=true;button.textContent='Preparando PDF…'}
   const frame=document.createElement('iframe');
   frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;
-  frame.style.cssText='position:fixed;left:-10000px;top:0;width:850px;height:1100px;border:0;pointer-events:none;z-index:-1';
+  const isQuotePdf=html.includes('simoun-quote-sheet');
+  // La medida del iframe debe coincidir con el ancho útil del PDF carta.
+  frame.style.cssText='position:fixed;left:-10000px;top:0;width:'+(isQuotePdf?'725':'850')+'px;height:1100px;border:0;pointer-events:none;z-index:-1';
   document.body.appendChild(frame);
   try{
     const doc=frame.contentDocument;doc.open();doc.write(html);doc.close();
@@ -393,6 +395,18 @@ async function downloadDocumentPdf(html,filename,button){
     await Promise.all(Array.from(doc.images).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{
       img.onload=img.onerror=()=>resolve();setTimeout(resolve,2500);
     })));
+    // Priorizar una sola hoja si la cotización se excede apenas.
+    // Para cotizaciones extensas mantener letra legible y permitir varias páginas.
+    if(isQuotePdf){
+      const quoteSheet=doc.querySelector('.simoun-quote-sheet');
+      if(quoteSheet){
+        const pageHeightPx=(279.4-12-14)*96/25.4;
+        const measured=quoteSheet.getBoundingClientRect().height;
+        if(measured>pageHeightPx && measured<=pageHeightPx*1.09){
+          quoteSheet.style.zoom=String(Math.max(.92,(pageHeightPx-6)/measured).toFixed(3));
+        }
+      }
+    }
     await window.html2pdf().set({
       margin:[12,12,14,12],
       filename,
