@@ -383,6 +383,10 @@ async function downloadDocumentPdf(html,filename,button){
   document.body.appendChild(frame);
   try{
     const doc=frame.contentDocument;doc.open();doc.write(html);doc.close();
+    // html2pdf clona BODY a otro contenedor. Los estilos en HEAD no viajaban con ese clon,
+    // por eso el PDF aparecía sin recuadros, colores ni separación entre los textos.
+    const pdfStyles=Array.from(doc.head.querySelectorAll('style')).map(node=>node.textContent||'').join('\n');
+    if(pdfStyles){const embedded=doc.createElement('style');embedded.textContent=pdfStyles;doc.body.insertBefore(embedded,doc.body.firstChild);}
     await new Promise(resolve=>setTimeout(resolve,100));
     await Promise.all(Array.from(doc.images).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{
       img.onload=img.onerror=()=>resolve();setTimeout(resolve,2500);
