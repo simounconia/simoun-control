@@ -1,10 +1,10 @@
 /* Cotizaciones y remisiones descargables */
-const DOC_COMPANY_DEFAULT={name:'SIMOUN',phone:'',whatsapp:'',email:''};
+const DOC_COMPANY_DEFAULT={name:'SIMOUN',phone:'443 489 2474',whatsapp:'443 489 2474',email:'',address:'Blvd. García de León 777, Chapultepec Sur, 58260 Morelia, Mich.'};
 function docStore(){
   state.commercialDocs ||= {company:{...DOC_COMPANY_DEFAULT},quotes:[],remissions:[]};
   const docs=state.commercialDocs;
   const oldCompany=docs.company||{};
-  docs.company={name:oldCompany.name||'SIMOUN',phone:oldCompany.phone||'',whatsapp:oldCompany.whatsapp||'',email:oldCompany.email||''};
+  docs.company={name:oldCompany.name||DOC_COMPANY_DEFAULT.name,phone:oldCompany.phone||DOC_COMPANY_DEFAULT.phone,whatsapp:oldCompany.whatsapp||DOC_COMPANY_DEFAULT.whatsapp,email:oldCompany.email||'',address:oldCompany.address||DOC_COMPANY_DEFAULT.address};
   docs.quotes ||= []; docs.remissions ||= [];
   docs.folioCounters ||= {};
   const year=new Date().getFullYear();
@@ -41,6 +41,7 @@ function docCompanyForm(){
   return '<details class="doc-company"><summary>Datos de SIMOUN para los documentos</summary><p class="muted">Completa estos datos una vez; se reutilizarán en los siguientes documentos.</p><form onsubmit="docSaveCompany(event)">'+
     '<div class="row">'+docInput('name','Nombre comercial',c.name||'SIMOUN','SIMOUN')+docInput('phone','Teléfono',c.phone,'Teléfono de contacto')+'</div>'+
     '<div class="row">'+docInput('whatsapp','WhatsApp',c.whatsapp,'WhatsApp de SIMOUN')+docInput('email','Correo',c.email,'Correo de contacto','email')+'</div>'+
+    '<div class="row">'+docInput('address','Dirección de SIMOUN',c.address,'Domicilio comercial')+'</div>'+ 
     '<button class="btn secondary" type="submit">Guardar datos de SIMOUN</button></form></details>';
 }
 function docSignatureSettings(){
@@ -69,7 +70,20 @@ function docClientOptions(){
 function docClientFields(){
   return '<div class="row">'+docInput('clientName','Cliente','', 'Nombre o razón social')+docInput('projectName','Nombre del proyecto (opcional)','','Proyecto')+'</div>'+
     '<div class="row">'+docInput('clientContact','Contacto','','Persona de contacto')+docInput('clientPhone','Teléfono','','Teléfono de contacto')+'</div>'+
-    '<div class="row">'+docInput('clientWhatsApp','WhatsApp','','WhatsApp del cliente')+docInput('clientEmail','Correo','','Correo de contacto','email')+'</div>';
+    '<div class="row">'+docInput('clientWhatsApp','WhatsApp','','WhatsApp del cliente')+docInput('clientEmail','Correo','','Correo de contacto','email')+'</div>'+ 
+    '<div class="row">'+docInput('clientAddress','Domicilio del cliente','','Dirección (opcional)')+'</div>';
+}
+function docQuoteTermsFields(values={}){
+  const t=values||{};
+  return '<div class="doc-subhead">Condiciones de la cotización (opcionales)</div>'+
+    '<div class="row">'+docInput('serviceAddress','Lugar de instalación',t.serviceAddress,'Si es diferente del domicilio')+docInput('validity','Vigencia',t.validity,'Ej. 15 días')+'</div>'+
+    '<div class="row">'+docInput('deliveryTime','Tiempo de entrega',t.deliveryTime,'Ej. 5 a 7 días hábiles')+docInput('warranty','Garantía',t.warranty,'Ej. 12 meses en equipo')+'</div>'+
+    '<div class="row">'+docInput('paymentTerms','Condiciones de pago',t.paymentTerms,'Ej. Transferencia al confirmar')+docInput('deposit','Anticipo',t.deposit,'Ej. 50% de anticipo')+'</div>';
+}
+function docReadQuoteTerms(fd){
+  const terms={};
+  ['serviceAddress','validity','deliveryTime','warranty','paymentTerms','deposit'].forEach(k=>{terms[k]=String(fd.get(k)||'').trim()});
+  return terms;
 }
 function docLineRow(){
   return '<div class="doc-line" data-line><input data-description placeholder="Producto o servicio" aria-label="Producto o servicio"><input data-qty type="number" min="0.01" step="0.01" value="1" aria-label="Cantidad"><input data-price type="number" min="0" step="0.01" placeholder="Precio neto unitario" aria-label="Precio neto unitario"><button class="btn sm danger" type="button" onclick="docRemoveLine(this)" aria-label="Quitar renglón">×</button></div>';
@@ -88,7 +102,8 @@ function docForm(kind){
   return '<form class="doc-form" id="'+id+'Form" onsubmit="docCreate(event,\''+kind+'\')"><div class="doc-form-title"><h2>Nueva '+label+'</h2><span class="badge blue">Folio siguiente: '+esc(docNextFolio(kind))+'</span></div>'+
     '<div class="row"><label class="field"><span>Fecha</span><input name="date" type="date" value="'+docDate()+'" required></label><label class="field"><span>Seleccionar cliente existente</span><select name="clientSelect" onchange="docFillClient(\''+kind+'\',this)">'+docClientOptions()+'</select></label></div>'+
     '<div class="doc-subhead">Datos del cliente</div>'+docClientFields()+'<div class="doc-subhead">'+(quote?'Opciones':'Conceptos')+'</div>'+docItems(kind)+
-    '<label class="switch-line"><input type="checkbox" name="includeIVA"><span>Incluir IVA del 16% en el documento</span></label>'+
+    '<label class="switch-line"><input type="checkbox" name="includeIVA"><span>Incluir IVA del 16% en el documento</span></label>'+ 
+    (quote?docQuoteTermsFields(): '')+
     '<label class="field"><span>Notas para el cliente</span><textarea name="notes" placeholder="Condiciones, vigencia o información adicional visible para el cliente"></textarea></label>'+
     (quote?'':'<div class="doc-subhead">Control de factura y pago</div><div class="row"><label class="field"><span>Estado de factura</span><select name="invoiceStatus"><option value="">Seleccionar</option><option>No facturada</option><option>Facturada</option></select></label><label class="field"><span>Folio de factura</span><input name="invoiceFolio" placeholder="Ej. A-1234"></label></div><div class="row"><label class="field"><span>Estado de pago</span><select name="paymentStatus"><option value="">Sin registrar</option><option>Por pagar</option><option>Pagada</option><option>A crédito / PPD</option></select></label><label class="field"><span>Nota de facturación y complementos (privada)</span><textarea name="billingNote" placeholder="Ej. Pendiente complemento de pago, fecha o detalle de seguimiento"></textarea></label></div>')+
     (quote?docSignatureCheckbox(false):'')+'<label class="field doc-private"><span>Nota privada para SIMOUN</span><textarea name="privateNote" placeholder="Modelos, costo, proveedor u otros datos internos. No aparecerán en el documento descargable."></textarea></label>'+
@@ -105,7 +120,7 @@ function renderQuotes(){docRender('quote')}
 function renderRemissions(){docRender('remission')}
 function docSaveCompany(e){
   e.preventDefault();const f=new FormData(e.currentTarget),c=docStore().company;
-  ['name','phone','whatsapp','email'].forEach(k=>c[k]=String(f.get(k)||'').trim());
+  ['name','phone','whatsapp','email','address'].forEach(k=>c[k]=String(f.get(k)||'').trim());
   if(!c.name)c.name='SIMOUN';save();
 }
 function docFillClient(kind,select){
@@ -113,7 +128,7 @@ function docFillClient(kind,select){
   const form=document.getElementById(kind==='quote'?'quoteForm':'remitForm');if(!form)return;
   const set=(key,value)=>{if(form.elements[key])form.elements[key].value=value||''};
   set('clientName',c.name);set('projectName',c.projectName);set('clientContact',c.contact);
-  set('clientPhone',c.phone);set('clientWhatsApp',c.whatsapp);set('clientEmail',c.email||'');
+  set('clientPhone',c.phone);set('clientWhatsApp',c.whatsapp);set('clientEmail',c.email||'');set('clientAddress',c.address||'');
 }
 function docAddLine(button){
   const form=button.closest('form'),holder=button.parentElement.querySelector('[data-lines]')||form.querySelector('.doc-remit-lines');
@@ -142,7 +157,7 @@ function docReadLines(holder){
 function docCreate(e,kind){
   e.preventDefault();const form=e.currentTarget,fd=new FormData(form),quote=kind==='quote';
   const client={name:String(fd.get('clientName')||'').trim(),projectName:String(fd.get('projectName')||'').trim(),
-    contact:String(fd.get('clientContact')||'').trim(),phone:String(fd.get('clientPhone')||'').trim(),whatsapp:String(fd.get('clientWhatsApp')||'').trim(),email:String(fd.get('clientEmail')||'').trim()};
+    contact:String(fd.get('clientContact')||'').trim(),phone:String(fd.get('clientPhone')||'').trim(),whatsapp:String(fd.get('clientWhatsApp')||'').trim(),email:String(fd.get('clientEmail')||'').trim(),address:String(fd.get('clientAddress')||'').trim()};
   if(!client.name){alert('Escribe el nombre del cliente o razón social.');return}
   let options=[];
   if(quote){
@@ -158,9 +173,9 @@ function docCreate(e,kind){
   }
   const docs=docStore(),company=docs.company;
   const companyForm=document.querySelector('#'+(quote?'cotizaciones':'remisiones')+' .doc-company form');
-  if(companyForm){const cf=new FormData(companyForm);['name','phone','whatsapp','email'].forEach(k=>company[k]=String(cf.get(k)||'').trim());if(!company.name)company.name='SIMOUN'}
+  if(companyForm){const cf=new FormData(companyForm);['name','phone','whatsapp','email','address'].forEach(k=>company[k]=String(cf.get(k)||'').trim());if(!company.name)company.name='SIMOUN'}
   const d={id:uid(),folio:docIssueFolio(kind),date:String(fd.get('date')||docDate()),createdAt:new Date().toISOString(),
-    simoun:{...company},client,options,includeIVA:fd.get('includeIVA')==='on',notes:String(fd.get('notes')||'').trim(),privateNote:String(fd.get('privateNote')||'').trim(),
+    simoun:{...company},client,options,terms:quote?docReadQuoteTerms(fd):{},includeIVA:fd.get('includeIVA')==='on',notes:String(fd.get('notes')||'').trim(),privateNote:String(fd.get('privateNote')||'').trim(),
     invoiceStatus:quote?'':String(fd.get('invoiceStatus')||''),invoiceFolio:quote?'':String(fd.get('invoiceFolio')||'').trim(),
     paymentStatus:quote?'':String(fd.get('paymentStatus')||''),billingNote:quote?'':String(fd.get('billingNote')||'').trim(),includeSignature:quote&&fd.get('includeSignature')==='on',signatureImage:quote&&fd.get('includeSignature')==='on'?(docs.signatureImage||''):''};
   if(d.includeSignature&&!d.signatureImage){alert('Primero carga la imagen original en Firma administrativa.');return}
@@ -222,9 +237,11 @@ function docEditQuote(id){
     '<div class="doc-subhead">Datos del cliente</div><div class="row">'+docInput('clientName','Cliente',client.name,'Nombre o razón social')+docInput('projectName','Nombre del proyecto',client.projectName,'Proyecto')+'</div>'+
     '<div class="row">'+docInput('clientContact','Contacto',client.contact,'Persona de contacto')+docInput('clientPhone','Teléfono',client.phone,'Teléfono')+'</div>'+
     '<div class="row">'+docInput('clientWhatsApp','WhatsApp',client.whatsapp,'WhatsApp')+docInput('clientEmail','Correo',client.email,'Correo','email')+'</div>'+
+    '<div class="row">'+docInput('clientAddress','Domicilio del cliente',client.address,'Dirección (opcional)')+'</div>'+ 
     '<div class="doc-subhead">Opciones y conceptos</div><div class="doc-option-list" id="quoteEditOptions">'+options.map((o,n)=>docQuoteEditOption(o,n+1)).join('')+'</div>'+
     '<button class="btn secondary" type="button" onclick="docAddEditQuoteOption()">+ Agregar otra opción</button>'+
     '<label class="switch-line"><input type="checkbox" name="includeIVA" '+(d.includeIVA?'checked':'')+'><span>Incluir IVA del 16%</span></label>'+
+    docQuoteTermsFields(d.terms||{})+
     '<label class="field"><span>Notas para el cliente</span><textarea name="notes">'+esc(d.notes||'')+'</textarea></label>'+
     docSignatureCheckbox(!!d.includeSignature)+
     '<label class="field doc-private"><span>Nota privada para SIMOUN</span><textarea name="privateNote">'+esc(d.privateNote||'')+'</textarea></label>'+
@@ -249,8 +266,8 @@ function docUpdateQuote(e,id){
   if(options.some(o=>!o.lines.length)){alert('Agrega al menos un concepto en cada opción.');return}
   d.date=String(fd.get('date')||d.date||docDate());
   d.client={...d.client,name,projectName:String(fd.get('projectName')||'').trim(),contact:String(fd.get('clientContact')||'').trim(),
-    phone:String(fd.get('clientPhone')||'').trim(),whatsapp:String(fd.get('clientWhatsApp')||'').trim(),email:String(fd.get('clientEmail')||'').trim()};
-  d.options=options;d.includeIVA=fd.get('includeIVA')==='on';
+    phone:String(fd.get('clientPhone')||'').trim(),whatsapp:String(fd.get('clientWhatsApp')||'').trim(),email:String(fd.get('clientEmail')||'').trim(),address:String(fd.get('clientAddress')||'').trim()};
+  d.options=options;d.terms=docReadQuoteTerms(fd);d.includeIVA=fd.get('includeIVA')==='on';
   d.notes=String(fd.get('notes')||'').trim();d.privateNote=String(fd.get('privateNote')||'').trim();
   const useSignature=fd.get('includeSignature')==='on';
   if(useSignature&&!d.signatureImage&&!docStore().signatureImage){alert('Primero carga la imagen original de la firma.');return}
