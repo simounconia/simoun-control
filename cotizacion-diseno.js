@@ -17,7 +17,7 @@ function docQuoteHTML(d){
   ].filter(Boolean).join('');
   const options=(d.options||[]).map((o,i)=>{
     const title=has(o.title)?o.title:'Opción '+(i+1);
-    const showTitle=d.options.length>1 || (title!=='Opción 1'&&title!=='Opción '+(i+1));
+    const showTitle=(d.options||[]).length>1 || (title!=='Opción 1'&&title!=='Opción '+(i+1));
     const lines=(o.lines||[]);
     const body=lines.map(x=>'<tr><td>'+clean(x.description)+'</td><td class="center">'+Number(x.quantity||0).toLocaleString('es-MX',{maximumFractionDigits:2})+'</td><td class="money">'+money(x.unitPrice)+'</td><td class="money">'+money(Number(x.quantity||0)*Number(x.unitPrice||0))+'</td></tr>').join('');
     const total=docTotals(lines,!!d.includeIVA);
@@ -30,7 +30,7 @@ function docQuoteHTML(d){
       '<div class="grand"><span>Total'+(d.includeIVA?'':' (sin IVA)')+'</span><b>'+money(total.total)+'</b></div></div></section>';
   }).join('');
   const terms=[
-    line('Vigencia',t.validity||(!Object.keys(t).length?'15 días':'')),
+    line('Vigencia',t.validity),
     line('Tiempo de entrega',t.deliveryTime),
     line('Garantía',t.warranty),
     line('Condiciones de pago',t.paymentTerms),
@@ -57,7 +57,7 @@ function docQuoteHTML(d){
   '.footer{margin-top:24px;padding-top:12px;border-top:2px solid #1b6cbd;display:flex;justify-content:space-between;gap:24px;color:#264767;font-size:10px;break-inside:avoid;page-break-inside:avoid}.footer span{display:block}.footer strong{color:#0a397b}'+
   '@page{size:letter;margin:13mm} @media print{body{padding:0;max-width:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}.top-accent{margin:0 0 21px}h1,h2,h3{break-after:avoid}}'+
   '</style></head><body><div class="top-accent"></div>'+
-  '<header class="brand-row"><div class="brand-left">'+logo+'</div><div class="brand-right"><b>SIMOUN · Control Operativo</b><small>Seguridad y monitoreo para tu hogar o negocio</small></div></header>'+
+  '<header class="brand-row"><div class="brand-left">'+logo+'</div><div class="brand-right"><b>SIMOUN · Control Operativo</b><small>Alarmas, cámaras, videoportero y cerca eléctrica para la seguridad de tu hogar y tu negocio.</small></div></header>'+
   '<div class="titlebar"><h1>COTIZACIÓN</h1><div class="rule"></div><div class="folio"><div><span>Folio:</span><b>'+clean(d.folio||'')+'</b></div><div><span>Fecha:</span><b>'+clean(fmt(d.date))+'</b></div></div></div>'+
   '<section><div class="section-title"><span class="section-icon">●</span><h2>Datos del cliente</h2><span class="title-rule"></span></div><div class="client-panel">'+rows+'</div></section>'+
   '<div class="section-title"><span class="section-icon">≡</span><h2>Detalle</h2><span class="title-rule"></span></div>'+
