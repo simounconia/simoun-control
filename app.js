@@ -52,7 +52,7 @@ function showPage(id){
   document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===id));
   document.getElementById('fab').style.display=id==='expedientes'?'block':'none';
   if(id==='expedientes')renderClients(document.getElementById('clientSearch')?.value||'');
-  if(id==='banco'||id==='calendario')ensureBankFrame();
+  if(id==='banco'||id==='calendario')loadOperatingBank();
   if(id==='calendario')renderCalendar();
   if(id==='jornada'&&typeof renderJornada==='function')renderJornada();
   if(id==='cotizaciones'&&typeof renderQuotes==='function')renderQuotes();
@@ -263,23 +263,19 @@ async function installPWA(){
 }
 
 function renderAll(){dashboard();renderClients();renderCalendar();renderMonitors();if(typeof renderJornada==='function')renderJornada();if(typeof renderQuotes==='function')renderQuotes();if(typeof renderRemissions==='function')renderRemissions();if(typeof receiptRender==='function')receiptRender();if(typeof renderPurchases==='function')renderPurchases()}
-nav();renderAll();document.getElementById('fab').onclick=newClient;showPage('inicio');
+nav();renderAll();document.getElementById('fab').onclick=newClient;showPage(location.hash==='#banco'?'banco':'inicio');
 window.SimounSync?.init({getState:()=>state,applyState:(remote)=>{state=remote;renderAll()}});
 if('serviceWorker' in navigator && location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn))}
 window.addEventListener('online',()=>window.SimounSync?.refreshStatus?.());window.addEventListener('offline',()=>window.SimounSync?.refreshStatus?.());
 
-
-function ensureBankFrame(){
-  const frame=document.getElementById('bankFrame');
-  if(frame&&!frame.getAttribute('src'))frame.src='./conciliaciones/';
+async function loadOperatingBank(caseId=''){
+ try{await import('./banco/modulo.js?v=1');await window.openOperatingBank(caseId);}
+ catch{document.getElementById('banco').textContent='No se pudo cargar Conciliación bancaria. Vuelve a abrir la pestaña para reintentar.';}
 }
-window.addEventListener('message',event=>{
-  const frame=document.getElementById('bankFrame');
-  if(event.origin!==location.origin||event.source!==frame?.contentWindow||event.data?.kind!=='simoun-bank-agenda')return;
-  bankAgenda=(event.data.items||[]).filter(x=>/^[\da-f-]{36}$/i.test(x.id)&&/^\d{4}-\d{2}-\d{2}$/.test(x.date));
-  renderCalendar();
-});
 function openBankCase(id){
-  showPage('banco');
-  document.getElementById('bankFrame').src='./conciliaciones/?seguimiento='+encodeURIComponent(id);
+ showPage('banco');loadOperatingBank(id);
 }
+window.addEventListener('simoun-access-change',()=>{
+ if(!window.SimounSync?.isAdmin())window.clearOperatingBank?.();
+ if(document.querySelector('#banco.active,#calendario.active'))loadOperatingBank();
+});
