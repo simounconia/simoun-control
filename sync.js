@@ -214,11 +214,41 @@
       <div class="notice"><strong>SIMOUN privado</strong><br>El acceso está limitado a la cuenta administradora.</div>
       ${s.user?`
         <div class="card" style="margin-top:12px"><strong>${displayName()}</strong><div class="muted">${currentEmail()}</div><div style="margin-top:8px"><span class="badge ${isAdmin()?'blue':'green'}">${roleLabel()||'Sin permiso'}</span></div></div>
-        <div class="toolbar" style="margin-top:12px"><button class="btn" id="syncNowBtn">Sincronizar ahora</button><button class="btn secondary" id="signOutBtn">Cerrar todas las sesiones</button></div>`:
+        <div class="toolbar" style="margin-top:12px"><button class="btn" id="syncNowBtn">Sincronizar ahora</button><button class="btn secondary" id="signOutBtn">Cerrar todas las sesiones</button></div>
+        <details style="margin-top:12px"><summary>Cambiar contraseña</summary>
+        <form id="changePasswordForm" class="card">
+          <label class="field">Contraseña actual<input name="current" type="password" autocomplete="current-password" required></label>
+          <label class="field">Nueva contraseña<input name="replacement" type="password" autocomplete="new-password" required></label>
+          <label class="field">Confirma la nueva contraseña<input name="confirmation" type="password" autocomplete="new-password" required></label>
+          <button class="btn">Guardar contraseña</button><p role="status"></p>
+        </form></details>`:
       `<div class="row" style="margin-top:12px"><div class="field"><label>Correo</label><input id="syncEmail" type="email" autocomplete="username"></div><div class="field"><label>Contraseña</label><input id="syncPass" type="password" autocomplete="new-password"></div></div><div class="toolbar" style="margin-top:10px"><button class="btn" id="signInBtn">Iniciar sesión</button></div><div class="muted" style="font-size:12px">Inicia sesión con la cuenta administradora.</div>`}
       <div id="syncError" class="muted" style="margin-top:10px;color:#b42318">${meta().lastError||''}</div>`;
     d.showModal();
 
+    const passwordForm=document.getElementById('changePasswordForm');
+    if(passwordForm){
+      d.addEventListener('close',()=>passwordForm.reset(),{once:true});
+      passwordForm.onsubmit=async event=>{
+        event.preventDefault();
+        const fields=passwordForm.elements;
+        const status=passwordForm.querySelector('[role="status"]');
+        if(fields.replacement.value!==fields.confirmation.value){
+          status.textContent='Las dos contraseñas nuevas deben coincidir.';
+          return;
+        }
+        const button=passwordForm.querySelector('button');
+        button.disabled=true;
+        status.textContent='Guardando…';
+        try{
+          await api('/auth/v1/user',{method:'PUT',body:JSON.stringify({current_password:fields.current.value,password:fields.replacement.value})});
+          passwordForm.reset();
+          status.textContent='Contraseña actualizada.';
+        }catch{
+          status.textContent='No se pudo cambiar. Revisa la contraseña actual y tu conexión. Si persiste, vuelve a iniciar sesión e intenta con otra contraseña nueva.';
+        }finally{button.disabled=false}
+      };
+    }
     document.getElementById('signInBtn')?.addEventListener('click',async()=>{
       const email=document.getElementById('syncEmail').value.trim(),pass=document.getElementById('syncPass').value;
       try{await signIn(email,pass);await syncNow();openSettings('Sesión iniciada en SIMOUN.')}catch(e){setMeta({status:'error',lastError:String(e.message||e)});openSettings('No se pudo iniciar sesión.')}
