@@ -13,7 +13,7 @@
   let timer=null, syncBusy=false, adminUidCache='';
   let access={role:'',displayName:'',email:'',workspace:WORKSPACE};
 
-  function cfg(){try{return {...DEFAULT_CFG,...(JSON.parse(localStorage.getItem(CFG_KEY)||'null')||{})}}catch{return {...DEFAULT_CFG}}}
+  function cfg(){return DEFAULT_CFG}
   function session(){try{return JSON.parse(localStorage.getItem(TOKEN_KEY)||'null')||{}}catch{return{}}}
   function meta(){try{return JSON.parse(localStorage.getItem(META_KEY)||'null')||{}}catch{return{}}}
   function setMeta(p){localStorage.setItem(META_KEY,JSON.stringify({...meta(),...p}));refreshStatus()}
@@ -38,6 +38,7 @@
     if(!r.ok)return false;
     const data=await r.json();
     if(data.expires_in&&!data.expires_at)data.expires_at=Math.floor(Date.now()/1000)+Number(data.expires_in);
+    if(session().refresh_token!==s.refresh_token)return false;
     localStorage.setItem(TOKEN_KEY,JSON.stringify(data));
     return true;
   }
@@ -73,6 +74,7 @@
   }
 
   async function signOut(){
+    document.documentElement.style.visibility='hidden';
     let allSessionsClosed=false;
     try{
       if(await ensureSession()){
@@ -83,7 +85,7 @@
     localStorage.removeItem(TOKEN_KEY);
     access={role:'',displayName:'',email:'',workspace:WORKSPACE};adminUidCache='';
     setMeta({status:'offline',lastError:'',authorizedEmail:''});refreshStatus();dispatch('simoun-access-change');dispatch('simoun-activity-change');
-    return allSessionsClosed;
+    location.reload();return allSessionsClosed;
   }
 
   async function loadAccess(strict=false){
@@ -91,7 +93,7 @@
     const email=session().user?.email||'';
     const rows=await api('/rest/v1/simoun_workspace_members?workspace_id=eq.'+encodeURIComponent(WORKSPACE)+'&email=eq.'+encodeURIComponent(email)+'&select=email,role,display_name&limit=1',{headers:{'Accept':'application/json'}});
     const row=Array.isArray(rows)?rows[0]:null;
-    if(!row||row.role!=='admin'){
+    if(!row||row.role!=='admin'||await api('/rest/v1/rpc/simoun_member_role',{method:'POST',body:JSON.stringify({p_workspace:WORKSPACE})})!=='admin'){
       access={role:'',displayName:'',email,workspace:WORKSPACE};
       setMeta({authorizedEmail:''});
       if(strict)throw new Error('Solo la cuenta administradora tiene acceso a SIMOUN.');
@@ -195,15 +197,10 @@
     const who=roleLabel();return (m.lastSync?'Sincronizado':'Conectado')+(who?' · '+who:'');
   }
   function statusClass(){const m=meta();return m.status==='error'?'red':loggedIn()?'green':'orange'}
-  function refreshPrivateGate(){
-    const gate=document.getElementById('privateGate');if(!gate)return;
-    const email=session().user?.email||'';
-    const previouslyAuthorized=!!email&&meta().authorizedEmail===email;
-    const allowed=loggedIn()&&previouslyAuthorized&&(isAdmin()||!navigator.onLine);
-    gate.style.display=allowed?'none':'flex';
-  }
+  async function verifyOwner(){if(!loggedIn())return false;await loadAccess(true);return isAdmin();}
+  
   function refreshStatus(){
-    refreshPrivateGate();
+
     const el=document.getElementById('syncStatus');if(el){el.textContent=statusText();el.className='badge '+statusClass()}
     const err=document.getElementById('syncError');if(err)err.textContent=meta().lastError||'';
   }
@@ -255,6 +252,6 @@
   }
   window.SimounSync={readOperatingBank,writeOperatingBank,
     init,queuePush,syncNow,openSettings,statusHTML,refreshStatus,uploadDocument,downloadDocument,deleteDocument,
-    configured,loggedIn,role,isAdmin,currentEmail,displayName,signIn,signOut
+    verifyOwner,configured,loggedIn,role,isAdmin,currentEmail,displayName,signIn,signOut
   };
 })();
