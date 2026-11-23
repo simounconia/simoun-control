@@ -38,6 +38,7 @@
  #privateGate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:#f4f7fb;color:#10233f}#privateGate .gate-card{width:min(100%,440px);padding:24px;background:#fff;border:1px solid #dce4ef;border-radius:18px;box-shadow:0 12px 36px rgba(16,35,63,.15)}#privateGate h2{margin:0 0 8px}#privateGate p{color:#61738b;line-height:1.5}
 
 .work-status{min-width:0;margin:4px 0 10px;padding:0;border:0}.work-status legend{font-weight:600;margin-bottom:3px}.work-status>div{display:flex;flex-wrap:wrap;gap:2px 10px}.work-status label{display:inline-flex;align-items:center;gap:4px;min-height:30px;white-space:nowrap;cursor:pointer}.work-status input{width:auto;margin:0;accent-color:var(--brand)}
+#banco .bank{display:grid;gap:12px}#banco h1{font-size:1.5rem;color:var(--brand);margin:4px 0}#banco .bank-bar,#banco .bank-card,#banco .bank-panel{display:flex;flex-wrap:wrap;align-items:center;gap:8px}#banco .bank-card>p,#banco .bank-card>h3,#banco .bank-card>small{flex-basis:100%;margin:0}#banco .bank-card{overflow-wrap:anywhere}#banco label{display:grid;gap:4px;font-weight:600;color:var(--ink);max-width:100%}#banco input,#banco select{border:1px solid var(--line);border-radius:8px;padding:8px;background:white;min-width:0;max-width:100%}#banco button:disabled{opacity:.7}#banco .bank-bar button:disabled{background:var(--brand);color:white}#banco .bank-panel{margin-bottom:12px}#banco .bank-panel>div{width:100%}#banco .bank-panel>div>label{display:block;padding:5px}
 </style>
 </head>
 <body>
@@ -56,7 +57,7 @@
 <section id="cotizaciones" class="page"></section>
 <section id="remisiones" class="page"></section>
 <section id="recibos" class="page"></section>
-<section id="compras" class="page"></section><section id="banco" class="page"><iframe id="bankFrame" title="Conciliación bancaria SIMOUN" style="width:100%;height:82vh;border:0;background:white"></iframe></section>
+<section id="compras" class="page"></section><section id="banco" class="page"></section>
 <div class="footer-note">SIMOUN funciona también sin internet. Si activas la sincronización privada, los expedientes y documentos se comparten entre tus dispositivos autorizados.</div>
 </main>
 <button class="fab" id="fab" title="Nuevo expediente">+</button>
@@ -67,8 +68,8 @@
 <dialog id="syncDlg"><div class="modal-head"><strong>Sincronización privada</strong><button class="close" onclick="syncDlg.close()">×</button></div><div class="modal-body" id="syncDlgBody"></div></dialog>
 <dialog id="monitorDlg"><div class="modal-head"><strong id="monitorDlgTitle">Cliente de monitoreo</strong><button class="close" onclick="monitorDlg.close()">×</button></div><div class="modal-body" id="monitorDlgBody"></div></dialog>
 <dialog id="paymentDlg"><div class="modal-head"><strong id="paymentDlgTitle">Pago de monitoreo</strong><button class="close" onclick="paymentDlg.close()">×</button></div><div class="modal-body" id="paymentDlgBody"></div></dialog>
-<script src="sync.js?v=20261028-1"></script>
-<script src="app.js?v=20261123-banco"></script>
+<script src="sync.js?v=20261123-banco-nativo"></script>
+<script src="app.js?v=20261123-banco-nativo"></script>
 <script src="monitoreos.js?v=20261123-6"></script>
 <script src="captura-rapida.js?v=20261019-6"></script>
 
