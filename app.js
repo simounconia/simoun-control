@@ -96,9 +96,39 @@ function typeFilterPanel(){
 }
 function setIssueTypeFilter(type){issueTypeFilter=type;renderClients(document.getElementById('clientSearch')?.value||'')}
 
+function orderedClients(category){
+  const clients=state.clients.filter(c=>category==='Todos'||(c.issues||[]).some(i=>
+    category==='Cobranza y pagos'?hasActiveServiceCharge(i):i.type===category));
+  const rank=c=>c.priorityByCategory?.[category]??Number.MAX_SAFE_INTEGER;
+  return clients.sort((a,b)=>rank(a)-rank(b));
+}
+
+function matchesClientSearch(client,query){
+  const term=query.trim().toLowerCase();
+  return [client.name,client.contact,client.company,client.address,client.phone,client.whatsapp]
+    .some(value=>String(value||'').toLowerCase().includes(term));
+}
+
+function moveClientPriority(id,step){
+  const query=document.getElementById('clientSearch')?.value||'';
+  const category=issueTypeFilter;
+  const clients=orderedClients(category);
+  const visible=clients.filter(c=>matchesClientSearch(c,query));
+  const index=visible.findIndex(c=>c.id===id);
+  const neighbor=visible[index+step];
+  if(index<0||!neighbor)return;
+  const from=clients.indexOf(visible[index]),to=clients.indexOf(neighbor);
+  [clients[from],clients[to]]=[clients[to],clients[from]];
+  clients.forEach((client,position)=>{
+    client.priorityByCategory={...client.priorityByCategory,[category]:position};
+  });
+  save();
+  if(query)renderClients(query);
+  document.getElementById('priority-'+id)?.scrollIntoView({block:'nearest'});
+}
+
 function renderClients(q=''){
-  const s=q.trim().toLowerCase();
-  const arr=state.clients.filter(c=>[c.name,c.contact,c.company,c.address,c.phone,c.whatsapp].some(v=>(v||'').toLowerCase().includes(s))).filter(c=>issueTypeFilter==='Todos'||(c.issues||[]).some(i=>issueTypeFilter==='Cobranza y pagos'?hasActiveServiceCharge(i):i.type===issueTypeFilter));
+  const arr=orderedClients(issueTypeFilter).filter(c=>matchesClientSearch(c,q));
   document.getElementById('expedientes').innerHTML=`
     <div class="toolbar"><input id="clientSearch" class="search" placeholder="Buscar por cliente, empresa, teléfono o dirección" value="${esc(q)}"><button class="btn" onclick="newClient()">+ Nuevo expediente</button></div>
     ${typeFilterPanel()}
