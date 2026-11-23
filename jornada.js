@@ -87,6 +87,24 @@ function jRoutineRows(j,done){
       '<button type="button" class="j-routine-delete" title="Borrar paso" aria-label="Borrar '+jesc(r.title)+'" onclick="deleteJRoutine(event,\''+r.id+'\')">×</button></div></div>';
   }).join('');
 }
+let jornadaTaskQuery='';
+function jornadaTaskResults(tasks,day){
+  const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const words=normalize(jornadaTaskQuery).trim().split(/\s+/).filter(Boolean);
+  const matches=tasks.filter(t=>{
+    const text=normalize([t.title,t.type,t.note,t.date,jornadaDate(t.date)].join(' '));
+    return words.every(word=>text.includes(word));
+  });
+  if(words.length && !matches.length)return '<div class="j-empty">Sin coincidencias.</div>';
+  const open=matches.filter(x=>!x.done).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
+  const completed=matches.filter(x=>x.done).sort((a,b)=>String(b.completedAt||b.createdAt||'').localeCompare(String(a.completedAt||a.createdAt||'')));
+  return `<div class="j-items">${open.length?open.map(t=>jTaskCard(t,day,false)).join(''):words.length?'':'<div class="j-empty">No hay pendientes abiertos. Agrega uno en cuanto te lo pidan.</div>'}</div>
+  ${completed.length?'<details '+(words.length?'open ':'')+'class="j-completed"><summary>✓ Pendientes realizados · '+completed.length+'</summary><div class="j-items">'+completed.map(t=>jTaskCard(t,day,true)).join('')+'</div></details>':''}`;
+}
+function searchJornadaTasks(value){
+  jornadaTaskQuery=value;
+  document.getElementById('jTaskResults').innerHTML=jornadaTaskResults(jornadaData().tasks,jornadaToday());
+}
 function renderJornada(){
   const root=document.getElementById('jornada'); if(!root)return;
   const j=jornadaData(),day=jornadaToday(),done=j.routineDone[day]||{};
@@ -97,8 +115,8 @@ function renderJornada(){
   const allNoteDates=Object.keys(j.dailyNotes).filter(d=>j.dailyNotes[d]?.trim()).sort((a,b)=>b.localeCompare(a));
   const noteQuery=jornadaNoteSearch.trim().toLowerCase();
   const noteDates=allNoteDates.filter(d=>!noteQuery||d.toLowerCase().includes(noteQuery)||String(j.dailyNotes[d]||'').toLowerCase().includes(noteQuery));
-  const open=j.tasks.filter(x=>!x.done).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
-  const completed=j.tasks.filter(x=>x.done).sort((a,b)=>String(b.completedAt||b.createdAt||'').localeCompare(String(a.completedAt||a.createdAt||'')));
+  const open=j.tasks.filter(x=>!x.done);
+
   const checked=j.routines.filter(x=>done[x.id]).length;
   root.innerHTML=`
     <div class="j-hero"><div><span class="j-kicker">SIMOUN · ORGANIZACIÓN DEL DÍA</span><h2>Jornada de trabajo</h2><p>Captura rápido lo que te pidan y organiza el trabajo del día.</p></div><div class="j-date"><label for="jDay">Hoy</label><strong>${new Date(day+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'})}</strong><small>${open.length} pendiente${open.length===1?'':'s'}</small></div></div>
@@ -111,8 +129,8 @@ function renderJornada(){
           <label class="field"><span>Cliente o nota (opcional)</span><input name="note" placeholder="Nombre, ventana de atención o detalle"></label>
           <button class="btn">+ Agregar pendiente</button>
         </form>
-        <div class="j-items">${open.length?open.map(t=>jTaskCard(t,day,false)).join(''):'<div class="j-empty">No hay pendientes abiertos. Agrega uno en cuanto te lo pidan.</div>'}</div>
-        ${completed.length?'<details class="j-completed"><summary>✓ Pendientes realizados · '+completed.length+'</summary><div class="j-items">'+completed.map(t=>jTaskCard(t,day,true)).join('')+'</div></details>':''}
+        <label class="field"><span>Buscar pendientes</span><input type="search" class="search" placeholder="Título, cliente, nota, tipo o fecha" value="${jesc(jornadaTaskQuery)}" oninput="searchJornadaTasks(this.value)"></label>
+        <div id="jTaskResults">${jornadaTaskResults(j.tasks,day)}</div>
       </section>
       <section class="card j-card"><div class="j-heading"><div><span class="j-icon">☑️</span><h3>Rutina diaria</h3></div><span class="j-count">${checked}/${j.routines.length}</span></div><p class="muted">Se reinicia sola cada día; tus marcas anteriores quedan guardadas.</p>
         <div class="j-routines">${jRoutineRows(j,done)}</div>
