@@ -49,7 +49,7 @@ export function addSheets(wb,data,period){
  for(const side of ['Emitida','Recibida'])add('SAT '+side.toLowerCase()+'s',['Fecha','Nombre fiscal','CFDI interno','UUID','Tipo','Total','Aplicado','Pendiente','Nota'],docs.filter(f=>f.side===side&&(f.date?.startsWith(period.month)||f.importMonth===period.month||moves.some(m=>m.invoices.some(i=>i.uuid.toUpperCase()===f.uuid)))).map(f=>[f.date,f.name,f.folio,f.uuid,f.kind==='payment'?'Complemento':'Factura',f.total==null?'':f.total/100,used(data,f.uuid)/100,f.total==null?'':(f.total-used(data,f.uuid))/100,f.note]));
  add('Pagos y facturas SAT',['Complemento','Factura','Fecha pago','Parcialidad','Saldo anterior','Importe pagado','Saldo insoluto'],docs.flatMap(f=>(f.links||[]).filter(l=>l.paymentDate?.startsWith(period.month)||f.date?.startsWith(period.month)).map(l=>[f.uuid,l.invoiceUuid,l.paymentDate,l.partial,l.before,l.amount/100,l.after])));
  add('Pendientes por resolver',['Fecha','Referencia','Pendiente','Importe','Nota'],pendingRows(data,period));
- add('Cancelaciones y sustituciones',['UUID','Estado','Acción','Seguimiento','Sustituye con UUID','Nota','Fecha del cambio'],book(data).cases.flatMap(c=>c.history.filter(h=>h.on.startsWith(period.month)||(!closed(c)&&h===c.history.at(-1))).map(h=>[c.uuid,h.stage,h.action,h.next,h.replacement,h.note,h.on])));
+ add('Cancelaciones y sustituciones',['UUID','Estado','Acción','Seguimiento','Sustituye con UUID','Nota','Fecha del cambio','Motivo','Acuse'],book(data).cases.flatMap(c=>c.history.filter(h=>h.on.startsWith(period.month)||(!closed(c)&&h===c.history.at(-1))).map(h=>[c.uuid,h.stage,h.action,h.next,h.replacement,h.note,h.on,h.reason,h.proof?.name])));
 }
 async function pdfRows(file,side){
  const base=new URL('./',import.meta.url).href;
@@ -65,7 +65,7 @@ async function pdfRows(file,side){
  const amounts=[...part.matchAll(/\$\s*([\d,]+\.\d{2})/g)];
  return {uuid:hit[0].toUpperCase(),side,kind:'invoice',date,total:amounts.length===1?Math.round(Number(amounts[0][1].replaceAll(',',''))*100):null,folio:'',name:display,method:'',links:[]};});
 }
-export function Banking({R,data,save,period,selectPeriod,newPeriod,importBank,download,parseXML,newInvoice,legacy,busy,attach,error}){
+export function Banking({R,data,save,period,selectPeriod,newPeriod,importBank,download,parseXML,newInvoice,legacy,busy,attachProof,openProof,error}){
  const h=R.createElement,[tab,tabTo]=R.useState('Movimientos'),[msg,tell]=R.useState(''),[side,setSide]=R.useState('Emitida'),[preview,setPreview]=R.useState([]),[query,search]=R.useState(''),[draft,edit]=R.useState(null);
  const reg=book(data),docs=catalog(data),moves=data.movements.filter(m=>active(m)&&m.period===period?.id);
  const btn=(label,fn,disabled=false)=>h('button',{type:'button',disabled:disabled||busy,onClick:()=>Promise.resolve().then(fn).catch(e=>tell(e.message))},label);
@@ -89,7 +89,7 @@ export function Banking({R,data,save,period,selectPeriod,newPeriod,importBank,do
  if((c.stage!=='Cancelada'||c.action==='Vincular sustitución')&&!c.next)throw Error('Elige la fecha del siguiente seguimiento.');
  if(c.replacement&&(!new RegExp('^'+uuidPattern.source+'$','i').test(c.replacement)||c.replacement.toUpperCase()===c.uuid))throw Error('Revisa el UUID sustituto.');
  if(c.stage==='Cancelada'&&c.action!=='Vincular sustitución')c.next='';
- c.history=[...(c.history||[]),{on:today(),stage:c.stage,action:c.action,next:c.next,note:c.note,replacement:c.replacement,reason:c.reason}];
+ c.history=[...(c.history||[]),{on:today(),stage:c.stage,action:c.action,next:c.next,note:c.note,replacement:c.replacement,reason:c.reason,proof:c.proof}];
  if(c.stage==='Cancelada'&&c.action==='Vincular sustitución'&&!c.replacement&&!c.next)throw Error('Selecciona la fecha para vincular la sustitución.');
  const list=docs.map(f=>f.uuid===c.uuid?{...f,status:c.stage==='Cancelada'?'Cancelada':f.status}:f);
  const movements=data.movements.map(m=>({...m,invoices:m.invoices.map(f=>c.stage==='Cancelada'&&f.uuid.toUpperCase()===c.uuid?{...f,status:c.replacement?'Sustituida':'Cancelada',replacement:c.replacement}:f)}));
@@ -121,7 +121,7 @@ export function Banking({R,data,save,period,selectPeriod,newPeriod,importBank,do
  ...[0,1,3].map((n,i)=>btn(['Hoy','Mañana','En 3 días'][i],()=>change('next',plus(n)))),
  field('Elegir sustituto registrado',opt([['','Seleccionar'],...docs.filter(f=>f.uuid!==draft.uuid).map(f=>[f.uuid,[f.folio,f.uuid].filter(Boolean).join(' · ')])],draft.replacement,v=>change('replacement',v))),field('UUID sustituto (opcional)',input(draft.replacement,v=>change('replacement',v))),
  field('Motivo',opt(['','Solicitud del cliente','Falta de pago','Error en el comprobante','Sustitución','Otro'],draft.reason,v=>change('reason',v))),field('Nota opcional',input(draft.note,v=>change('note',v))),btn('Guardar seguimiento',saveCase),
- draft.stage==='Cancelada'&&btn('Adjuntar acuse al periodo',()=>attach(period.id),!period),
+ draft.proof&&btn('Abrir acuse',()=>openProof(draft.proof)),period&&file('Adjuntar acuse PDF', '.pdf', async files=>{const proof=await attachProof(files[0],period.id,draft.uuid);change('proof',proof);tell('Acuse adjunto. Guarda el seguimiento para vincularlo.');}),
  ...(draft.history||[]).map((h1,i)=>h('small',{key:i},[h1.on,h1.stage,h1.note].filter(Boolean).join(' · ')))
  ]:draft.mode==='link'?[
  field('Buscar por nombre, folio o UUID',input(draft.q||'',v=>change('q',v))),
