@@ -22,7 +22,7 @@ function receiptForm(d){
  const field=(name,title,value,type='text',required='')=>'<label class="field"><span>'+title+'</span><input name="'+name+'" type="'+type+'" value="'+esc(value??'')+'" '+required+'></label>';
  return '<form class="doc-form" onsubmit="receiptSave(event,'+(edit?("'"+d.id+"'"):'null')+')">'+
  '<div class="doc-form-title"><h2>'+(edit?'Editar recibo':'Nuevo recibo de pago')+'</h2><span class="badge blue">'+esc(d?.folio||receiptNextFolio())+'</span></div>'+
- '<div class="row">'+field('date','Fecha del recibo',client.date||date,'date','required')+field('paymentDate','Fecha del pago',client.paymentDate||date,'date','required')+'</div>'+
+ templateControls('receipt',edit)+'<div class="row">'+field('date','Fecha del recibo',client.date||date,'date','required')+field('paymentDate','Fecha del pago',client.paymentDate||date,'date','required')+'</div>'+
  '<label class="field"><span>Cliente registrado (opcional)</span><select onchange="receiptFillClient(this)"><option value="">Capturar manualmente</option>'+
  (state.clients||[]).map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name||'Sin nombre')+'</option>').join('')+'</select></label>'+
  '<div class="row">'+field('clientName','Nombre del cliente',client.clientName,'text','required')+field('clientAddress','Dirección',client.clientAddress)+'</div>'+
