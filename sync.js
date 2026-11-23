@@ -242,7 +242,18 @@
     if(loggedIn()&&navigator.onLine)setTimeout(()=>syncNow(),600);
   }
 
-  window.SimounSync={
+  const bankEndpoint='/rest/v1/simoun_operativo_banco?workspace=eq.simoun';
+  async function readOperatingBank(){
+    const rows=await api(bankEndpoint+'&select=revision,data');
+    if(!rows[0])throw Error('Se requiere acceso administrativo.');
+    return rows[0];
+  }
+  async function writeOperatingBank(revision,data){
+    const rows=await api(bankEndpoint+'&revision=eq.'+Number(revision)+'&select=revision,data',{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({revision:revision+1,data})});
+    if(!rows[0])throw Error('Otra sesión actualizó la conciliación. Vuelve a cargarla antes de guardar.');
+    return rows[0];
+  }
+  window.SimounSync={readOperatingBank,writeOperatingBank,
     init,queuePush,syncNow,openSettings,statusHTML,refreshStatus,uploadDocument,downloadDocument,deleteDocument,
     configured,loggedIn,role,isAdmin,currentEmail,displayName,signIn,signOut
   };
