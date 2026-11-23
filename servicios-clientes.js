@@ -1,7 +1,7 @@
 /* SIMOUN: Servicios y Clientes */
 const SERVICE_TYPES=['Pregunta','Visita de cotización','Cotización','Mantenimiento','Reparación','Instalación'];
 ISSUE_TYPES.splice(0, ISSUE_TYPES.length, ...SERVICE_TYPES);
-const SERVICE_STATUSES=['Trabajo incompleto','Trabajo terminado'];
+const SERVICE_STATUSES=['Trabajo sin iniciar','Trabajo incompleto','Trabajo terminado'];
 const SERVICE_WAIT_STATES=['Esperando al cliente','Esperando a SIMOUN','Rápido'];
 const CHARGE_STATUSES=['Sin costo','Pagado','Pagado parcialmente','Cuenta por cobrar'];
 const PAYMENT_METHODS=[['01','Efectivo'],['02','Cheque nominativo'],['03','Transferencia electrónica de fondos'],['04','Tarjeta de crédito'],['05','Monedero electrónico'],['06','Dinero electrónico'],['08','Vales de despensa'],['12','Dación en pago'],['13','Pago por subrogación'],['14','Pago por consignación'],['15','Condonación'],['17','Compensación'],['23','Novación'],['24','Confusión'],['25','Remisión de deuda'],['26','Prescripción o caducidad'],['27','A satisfacción del acreedor'],['28','Tarjeta de débito'],['29','Tarjeta de servicios'],['30','Aplicación de anticipos'],['31','Intermediario pagos'],['99','Por definir']];
@@ -76,9 +76,9 @@ editIssue=function(cid,iid,previousId){
  document.getElementById('issueDlgTitle').textContent=isNew?'Nuevo servicio':'Editar servicio';
  const serviceNote = combinedServiceNotes(i);
  const initialDate = i.confirmedAppointmentDate || i.followupDate || '';
- const checks=(group,values,selected)=>values.map(v=>`<label style="display:flex;align-items:center;gap:7px;margin:6px 0"><input type="radio" required name="${group}" value="${esc(v)}" ${selected.includes(v)?'checked':''}>${esc(v==='Trabajo terminado'?'Trabajo completado':v)}</label>`).join('');
+ const statusOptions=SERVICE_STATUSES.map(status=>`<label><input type="radio" name="workStatuses" required value="${esc(status)}" ${i.workStatuses.includes(status)?'checked':''}>${esc(status)}</label>`).join('');
  document.getElementById('issueDlgBody').innerHTML=`<form id="issueForm">
- <div class="row"><div class="field"><label>Servicio</label><select name="type">${ISSUE_TYPES.map(x=>`<option ${x===i.type?'selected':''}>${esc(x)}</option>`).join('')}</select></div><div class="field"><label>Estatus del trabajo</label>${checks('workStatuses',SERVICE_STATUSES,i.workStatuses)}</div></div>
+ <div class="row"><div class="field"><label>Servicio</label><select name="type">${ISSUE_TYPES.map(x=>`<option ${x===i.type?'selected':''}>${esc(x)}</option>`).join('')}</select></div></div><fieldset class="work-status"><legend>Estatus del trabajo</legend><div>${statusOptions}</div></fieldset>
  <div class="field"><label for="serviceNote">${serviceNoteLabel}</label><small id="noteHelp">Anota lo que solicita el cliente, el horario en un renglón propio (ej. Horario: 10 a 12 h), los productos, materiales, herramientas y equipo necesarios. Incluye las acciones a realizar, qué trabajo se completó, fotos de referencia, pendientes y observaciones de seguimiento o cobro.</small><textarea rows="5" id="serviceNote" aria-describedby="noteHelp" name="description">${esc(serviceNote)}</textarea></div>
 
 
