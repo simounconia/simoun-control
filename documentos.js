@@ -112,7 +112,7 @@ function docItems(kind){
 function docQuoteNewForm(){
   return '<form class="doc-form doc-quote-form" id="quoteForm" onsubmit="docCreate(event,\'quote\')">'+
     '<div class="doc-form-title"><h2>Nueva cotización</h2><span class="badge blue">Folio siguiente: '+esc(docNextFolio('quote'))+'</span></div>'+
-    '<section class="doc-box"><h3>1. Datos generales</h3>'+
+    templateControls('quote')+'<section class="doc-box"><h3>1. Datos generales</h3>'+
       '<div class="row"><label class="field"><span>Fecha</span><input name="date" type="date" value="'+docDate()+'" required></label>'+
       '<label class="field"><span>Cliente registrado (opcional)</span><select name="clientSelect" onchange="docFillClient(\'quote\',this)">'+docClientOptions()+'</select></label></div></section>'+
     '<section class="doc-box"><h3>2. Datos del cliente</h3>'+docQuoteClientFields()+'</section>'+
@@ -130,7 +130,7 @@ function docForm(kind){
   if(kind==='quote')return docQuoteNewForm();
   const quote=kind==='quote',label=quote?'cotización':'remisión',id=quote?'quote':'remit';
   return '<form class="doc-form" id="'+id+'Form" onsubmit="docCreate(event,\''+kind+'\')"><div class="doc-form-title"><h2>Nueva '+label+'</h2><span class="badge blue">Folio siguiente: '+esc(docNextFolio(kind))+'</span></div>'+
-    '<div class="row"><label class="field"><span>Fecha</span><input name="date" type="date" value="'+docDate()+'" required></label><label class="field"><span>Seleccionar cliente existente</span><select name="clientSelect" onchange="docFillClient(\''+kind+'\',this)">'+docClientOptions()+'</select></label></div>'+
+    templateControls(kind)+'<div class="row"><label class="field"><span>Fecha</span><input name="date" type="date" value="'+docDate()+'" required></label><label class="field"><span>Seleccionar cliente existente</span><select name="clientSelect" onchange="docFillClient(\''+kind+'\',this)">'+docClientOptions()+'</select></label></div>'+
     '<div class="doc-subhead">Datos del cliente</div>'+docClientFields()+'<div class="doc-subhead">'+(quote?'Opciones':'Conceptos')+'</div>'+docItems(kind)+
     '<label class="switch-line"><input type="checkbox" name="includeIVA"><span>Incluir IVA del 16% en el documento</span></label>'+ 
     (quote?docQuoteTermsFields(): '')+
@@ -281,7 +281,7 @@ function docEditQuote(id){
         '<label class="field"><span>Notas para el cliente</span><textarea name="notes">'+esc(d.notes||'')+'</textarea></label>'+
         docSignatureCheckbox(!!d.includeSignature)+
         '<label class="field doc-private"><span>Nota privada para SIMOUN</span><textarea name="privateNote">'+esc(d.privateNote||'')+'</textarea></label></section>'+
-      '<div class="toolbar"><button class="btn" type="submit">Guardar cambios</button><button class="btn secondary" type="button" data-cancel>Cerrar</button></div></form></div>';
+      templateControls('quote',true)+'<div class="toolbar"><button class="btn" type="submit">Guardar cambios</button><button class="btn secondary" type="button" data-cancel>Cerrar</button></div></form></div>';
   const form=dlg.querySelector('#docEditQuoteForm'),close=()=>dlg.close();
   dlg.querySelector('.close').addEventListener('click',close);
   dlg.querySelector('[data-cancel]').addEventListener('click',close);
@@ -329,7 +329,7 @@ function docEditRemission(id){
     '<div class="row"><label class="field"><span>Estado de pago</span><select name="paymentStatus"><option value="">Sin registrar</option><option '+(d.paymentStatus==='Por pagar'?'selected':'')+'>Por pagar</option><option '+(d.paymentStatus==='Pagada'?'selected':'')+'>Pagada</option><option '+(d.paymentStatus==='A crédito / PPD'?'selected':'')+'>A crédito / PPD</option></select></label>'+docInput('paymentDate','Fecha de pago',d.paymentDate,'','date')+'</div>'+
     '<label class="field"><span>Notas privadas de facturación o pago</span><textarea name="billingNote" placeholder="Complementos, aclaraciones o notas internas">'+esc(d.billingNote||'')+'</textarea></label>'+
     '<label class="field doc-private"><span>Nota privada para SIMOUN</span><textarea name="privateNote">'+esc(d.privateNote||'')+'</textarea></label>'+
-    '<div class="toolbar"><button class="btn" type="submit">Guardar cambios</button><button class="btn secondary" type="button" data-cancel>Cerrar</button></div></form></div>';
+    templateControls('remission',true)+'<div class="toolbar"><button class="btn" type="submit">Guardar cambios</button><button class="btn secondary" type="button" data-cancel>Cerrar</button></div></form></div>';
   const form=dlg.querySelector('#docEditRemissionForm'),close=()=>dlg.close();
   dlg.querySelector('.close').addEventListener('click',close);
   dlg.querySelector('[data-cancel]').addEventListener('click',close);
@@ -521,3 +521,65 @@ function docStyle(){
   document.head.appendChild(s);
 }
 docStyle();purchaseStyle();(function(){const el=document.createElement('style');el.textContent="\n#cotizaciones .doc-layout{grid-template-columns:minmax(0,1fr}\n#cotizaciones .doc-create-card{padding:18px}\n#cotizaciones .doc-history{margin-top:6px}\n.doc-quote-form{display:grid;gap:16px}\n.doc-quote-form .doc-box{display:grid;gap:13px;border:1px solid #cbdced;border-radius:16px;background:linear-gradient(180deg,#fff,#fbfdff);padding:16px;box-shadow:0 2px 8px rgba(21,65,116,.055);min-width:0}\n.doc-quote-form .doc-box>h3{margin:0;color:#0c4486;font-size:17px;font-weight:850;padding:0 0 11px;border-bottom:2px solid #c4dcee}\n.doc-quote-form .doc-subhead{font-size:12px;font-weight:750;color:#54728c}\n.doc-quote-form .doc-option{background:#f5f9fd;border:1px solid #d7e4f0;padding:14px}\n.doc-quote-form .doc-option-head strong{font-size:15px}\n.doc-quote-form .doc-lines-head{margin-top:5px}\n.doc-quote-form .doc-option-total{display:grid;gap:0;margin-top:12px;border-radius:11px;overflow:hidden;border:1px solid #b9cbe0;background:#fff}\n.doc-quote-form .doc-option-total>div{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 12px;font-size:13px;border-bottom:1px solid #e5eef7;color:#254568}\n.doc-quote-form .doc-option-total .doc-option-grand{background:#0b478f;color:#fff;font-size:17px;font-weight:800;padding:11px 13px;border-bottom:0}\n.doc-quote-form .doc-option-total strong{white-space:nowrap;font-variant-numeric:tabular-nums}\n.doc-quote-form .doc-iva-toggle{background:#eaf2fb;border:1px solid #c9dff4;border-radius:11px;padding:12px}\n#docEditQuoteDlg .modal-body{max-height:min(79vh,850px);overflow:auto}\n@media(max-width:600px){.doc-quote-form .doc-box{padding:12px}.doc-quote-form .doc-box>h3{font-size:15px}}\n";document.head.appendChild(el)})();renderQuotes();renderRemissions();renderPurchases();
+
+function templateControls(kind,editing=false){
+  const button=`<button class="btn sm secondary" type="button" onclick="saveDocTemplate(this.form,'${kind}')">Guardar como machote</button>`;
+  if(editing)return button;
+  const templates=(docStore().templates||[]).filter(t=>t.kind===kind);
+  const choices=templates.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}${t.client?' · '+esc(t.client):''}</option>`).join('');
+  return `<div class="toolbar"><label class="field">Machotes guardados<select onchange="useDocTemplate(this)"> <option value="">Elegir machote</option>${choices}</select></label>${button}</div>`;
+}
+function captureDocTemplate(form){
+  const fields={};
+  for(const el of form.elements){
+    if(el.name && !el.closest('[data-option]'))fields[el.name]=el.type==='checkbox'?el.checked:el.value;
+  }
+  const groups=Array.from(form.querySelectorAll('[data-lines]'),holder=>{
+    const option=holder.closest('[data-option]');
+    return {title:option?.querySelector('[name=optionTitle]')?.value||'',description:option?.querySelector('[name=optionDescription]')?.value||'',
+      lines:Array.from(holder.querySelectorAll('[data-line]'),row=>['description','qty','price'].map(key=>row.querySelector('[data-'+key+']').value))};
+  });
+  return {fields,groups};
+}
+function fillDocTemplate(form,data){
+  const options=form.querySelector('#quoteOptions');
+  if(options)options.innerHTML=data.groups.map((_,i)=>docOptionCard(i+1)).join('');
+  form.querySelectorAll('[data-lines]').forEach((holder,i)=>{
+    const group=data.groups[i];
+    if(!group)return;
+    const card=holder.closest('[data-option]');
+    if(card){card.querySelector('[name=optionTitle]').value=group.title;card.querySelector('[name=optionDescription]').value=group.description;}
+    holder.innerHTML=group.lines.map(()=>docLineRow()).join('');
+    holder.querySelectorAll('[data-line]').forEach((row,n)=>['description','qty','price'].forEach((key,j)=>{row.querySelector('[data-'+key+']').value=group.lines[n][j]}));
+  });
+  for(const [key,value] of Object.entries(data.fields)){
+    const field=form.elements.namedItem(key);
+    if(field){if(field.type==='checkbox')field.checked=value;else field.value=value;}
+  }
+  if(options)docUpdateQuoteTotals(form);
+}
+function saveDocTemplate(form,kind){
+  const snapshot=captureDocTemplate(form),client=snapshot.fields.clientName||'';
+  const name=prompt('Nombre del machote',client)?.trim();
+  if(!name)return;
+  const store=docStore();
+  store.templates||=[];
+  store.templates.push({id:uid(),kind,name,client,data:snapshot});
+  const section=form.closest('#cotizaciones,#remisiones,#recibos')?.id;
+  save();
+  if(section){
+    if(kind==='receipt')receiptRender();
+    const fresh=document.querySelector('#'+section+' form.doc-form');
+    if(fresh)fillDocTemplate(fresh,snapshot);
+  }
+  alert('Machote guardado: '+name);
+}
+function useDocTemplate(select){
+  const template=(docStore().templates||[]).find(t=>t.id===select.value);
+  if(!template)return;
+  const form=select.form;
+  form.reset();
+  const fields={...template.data.fields,date:docDate(),paymentDate:docDate(),reference:'',invoiceFolio:'',paymentStatus:'',invoiceStatus:''};
+  fillDocTemplate(form,{fields,groups:template.data.groups});
+  select.value=template.id;
+}
