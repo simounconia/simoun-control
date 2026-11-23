@@ -68,13 +68,13 @@ editIssue=function(cid,iid,previousId){
  if(isNew && previousId){i.type='Reparación';i.previousIssueId=previousId;}
  i.workStatuses=serviceStatuses(i);i.chargeStatus=serviceChargeStatus(i);i.serviceDocs=i.serviceDocs||[];
  document.getElementById('issueDlgTitle').textContent=isNew?'Nuevo servicio':'Editar servicio';
- const previousNotes = [i.description,i.notes,i.productsServices,i.serviceToolsActions,i.appointmentWindow,i.reportNote,i.observations,i.actionNote,i.nextAction,i.missingWork,i.incompleteReason,i.futurePromise,i.adminNote].filter(Boolean);
+ const previousNotes = [i.description,i.notes,i.productsServices,i.serviceToolsActions,i.appointmentWindow?'Horario: '+i.appointmentWindow:'',i.reportNote,i.observations,i.actionNote,i.nextAction,i.missingWork,i.incompleteReason,i.futurePromise,i.adminNote].filter(Boolean);
  const serviceNote = [...new Set(previousNotes)].join('\n');
  const initialDate = i.confirmedAppointmentDate || i.followupDate || '';
  const checks=(group,values,selected)=>values.map(v=>`<label style="display:flex;align-items:center;gap:7px;margin:6px 0"><input type="radio" required name="${group}" value="${esc(v)}" ${selected.includes(v)?'checked':''}>${esc(v==='Trabajo terminado'?'Trabajo completado':v)}</label>`).join('');
  document.getElementById('issueDlgBody').innerHTML=`<form id="issueForm">
  <div class="row"><div class="field"><label>Servicio</label><select name="type">${ISSUE_TYPES.map(x=>`<option ${x===i.type?'selected':''}>${esc(x)}</option>`).join('')}</select></div><div class="field"><label>Estatus del trabajo</label>${checks('workStatuses',SERVICE_STATUSES,i.workStatuses)}</div></div>
- <div class="field"><label for="serviceNote">Notas del servicio</label><small id="noteHelp">Anota lo que solicita el cliente, el horario de visita, los productos, materiales, herramientas y equipo necesarios. Incluye las acciones a realizar, qué trabajo se completó, fotos de referencia, pendientes y observaciones de seguimiento o cobro.</small><textarea id="serviceNote" aria-describedby="noteHelp" name="description">${esc(serviceNote)}</textarea></div>
+ <div class="field"><label for="serviceNote">Notas del servicio</label><small id="noteHelp">Anota lo que solicita el cliente, el horario en un renglón propio (ej. Horario: 10 a 12 h), los productos, materiales, herramientas y equipo necesarios. Incluye las acciones a realizar, qué trabajo se completó, fotos de referencia, pendientes y observaciones de seguimiento o cobro.</small><textarea id="serviceNote" aria-describedby="noteHelp" name="description">${esc(serviceNote)}</textarea></div>
 
 
 
