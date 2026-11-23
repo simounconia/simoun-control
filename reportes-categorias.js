@@ -17,91 +17,44 @@
   }
   function reportDate(){return new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'})}
 
-  function printableCard(client,type='Todos'){
-    const reportClient=type==='Todos'?client:{
-      ...client,
-      issues:visibleReportIssues(client).filter(i=>i.type===type)
-    };
-    const holder=document.createElement('div');
-    holder.innerHTML=typeof exrCardMarkup==='function'
-      ? '<div class="card client exr-card">'+exrCardMarkup(reportClient)+'</div>'
-      : '<div class="card report-client-card"><strong>'+escReport(client.name||'Sin nombre')+'</strong></div>';
-    const card=holder.firstElementChild;
-    if(!card)return '';
-    card.classList.add('report-client-card');
-    card.querySelectorAll('button').forEach(el=>el.remove());
-    card.querySelectorAll('[onclick],[onchange]').forEach(el=>{el.removeAttribute('onclick');el.removeAttribute('onchange')});
-    card.querySelectorAll('.exr-statuses label').forEach(el=>el.remove());
-    const clientNotes=card.querySelector('.exr-client-notes textarea');
-    if(clientNotes){
-      const note=document.createElement('div');
-      note.className='exr-print-note';
-      note.textContent=clientNotes.value.trim()||'—';
-      clientNotes.replaceWith(note);
-    }
-    card.querySelectorAll('.exr-adminnote textarea').forEach(input=>{
-      const note=document.createElement('div');
-      note.className='exr-print-note';
-      note.textContent=input.value.trim()||'—';
-      input.replaceWith(note);
-    });
-    card.querySelectorAll('textarea').forEach(input=>{
-      const note=document.createElement('div');
-      note.className='exr-print-note';
-      note.textContent=input.value.trim()||'—';
-      input.replaceWith(note);
-    });
-    return card.outerHTML;
+  function reportNotes(values){
+    return [...new Set(values.map(value=>String(value||'').trim()).filter(Boolean))].join('\n');
   }
-
+  function field(label,value){
+    return '<span class="report-field"><b>'+label+'</b> '+escReport(value||'—')+'</span>';
+  }
+  function serviceRow(issue){
+    const date=issue.confirmedAppointmentDate||issue.followupDate||issue.appointmentDate||issue.attentionDate||'';
+    const notes=reportNotes([issue.description,issue.notes,issue.reportNote,issue.productsServices,issue.serviceToolsActions,issue.observations,issue.nextAction,issue.actionNote,issue.missingWork,issue.incompleteReason,issue.futurePromise]);
+    const hours=notes.match(/^(?:horario(?: de visita)?|ventana de tiempo)\s*:\s*([^\n]+)/im);
+    const windowText=hours?.[1]?.trim()||issue.appointmentWindow||issue.clientAvailability;
+    const workNotes=hours && hours[1].trim()===windowText?notes.replace(hours[0],'').trim():notes;
+    const amount=Number(issue.servicePrice||issue.total||0);
+    const charge=serviceChargeStatus(issue)==='Sin costo'?'Sin costo':new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(amount);
+    return '<div class="report-job"><div class="report-line">'+field('Fecha de cita',date.replace(/^(\d{4})-(\d{2})-(\d{2})$/,'$3/$2/$1'))+field('Ventana de tiempo',windowText)+field('Cargo',charge)+'</div><div>'+field('Notas del trabajo',workNotes)+'</div></div>';
+  }
+  function printableCard(client,type){
+    const jobs=visibleReportIssues(client).filter(issue=>type==='Todos'||issue.type===type);
+    return '<section class="report-client"><div class="report-line"><strong class="report-name">'+escReport(client.name||'Sin nombre')+'</strong>'+field('WhatsApp',client.whatsapp)+'</div><div>'+field('Dirección',client.address)+'</div><div>'+field('Notas del cliente',reportNotes([client.visitHours,client.notes,client.internalNotes]))+'</div>'+jobs.map(serviceRow).join('')+'</section>';
+  }
   function reportBody(type){
     const clients=reportClients(type);
-    const cards=clients.map(client=>printableCard(client,type)).join('');
-    return `<header class="report-heading"><h1>SIMOUN · Reporte por cliente</h1><p>Filtro de servicio: <strong>${escReport(type)}</strong> · ${clients.length} cliente${clients.length===1?'':'s'} · ${reportDate()}</p></header><main class="report-sheet">${cards||'<div class="report-empty">No hay clientes para este filtro.</div>'}</main>`;
+    return '<header><b>SIMOUN · Reporte para jefe</b> · '+escReport(type)+' · '+reportDate()+'</header>'+clients.map(c=>printableCard(c,type)).join('')+(clients.length?'':'Sin clientes para este filtro.');
   }
-  function reportExtraCss(){
-    return `
-      body{margin:0;padding:18px;background:#f4f7fb;color:#10233f;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-      .report-heading{max-width:1100px;margin:0 auto 14px}.report-heading h1{font-size:22px;margin:0 0 5px}.report-heading p{margin:0;color:#61738b}
-      .report-sheet{max-width:1100px;margin:0 auto}
-      .report-client-card{display:block!important;background:#fff;border:1px solid #dce4ef;border-radius:16px;padding:14px;margin:0 0 14px;box-shadow:0 5px 18px rgba(16,35,63,.08);break-inside:auto;page-break-inside:auto}
-      .report-client-card .exr-service{break-inside:avoid;page-break-inside:avoid}
-      .report-client-card .exr-print-note{white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;border:1px solid #dce4ef;border-radius:9px;padding:9px;min-height:24px;font-size:13px}
-      .report-empty{padding:30px;text-align:center;color:#61738b;background:#fff;border-radius:14px}
-      @page{size:auto;margin:7mm}
-      @media print{
-        body{padding:0!important;background:#fff!important;font-size:9pt!important;line-height:1.18!important}
-        .report-heading{margin:0 0 6px!important}.report-heading h1{font-size:15pt!important;margin:0 0 2px!important}.report-heading p{font-size:8pt!important}
-        .report-sheet{max-width:none!important}
-        .report-client-card{padding:6px!important;margin:0 0 6px!important;border-radius:5px!important;box-shadow:none!important;break-before:auto!important;page-break-before:auto!important}
-        .report-client-card+.report-client-card{break-before:auto!important;page-break-before:auto!important}
-        .exr-card-head{padding-bottom:4px!important;gap:5px!important}.exr-card-head strong{font-size:11pt!important}
-        .exr-contact{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:3px!important;padding:4px 0!important}
-        .exr-field{padding:4px!important;border-radius:4px!important}
-        .exr-field small{font-size:7pt!important;margin-bottom:1px!important}
-        .exr-field strong,.exr-field a{font-size:8pt!important;line-height:1.15!important}
-        .exr-section-title{font-size:9pt!important;margin:5px 0 3px!important}
-        .exr-service{padding:6px!important;margin:4px 0!important;border-radius:6px!important;break-inside:avoid-page;page-break-inside:avoid}
-        .exr-service-head{gap:4px!important}.exr-service-head .btn{display:none!important}
-        .type-label,.badge{padding:2px 4px!important;font-size:7pt!important}
-        .exr-details{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:3px!important;margin-top:4px!important}
-        .exr-copy{font-size:8pt!important;line-height:1.2!important;margin-top:4px!important}
-        .exr-finance{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:3px!important;margin-top:4px!important}
-        .exr-statuses{padding:3px 4px!important;margin-top:4px!important;font-size:7pt!important;gap:4px!important}
-        .exr-print-note{min-height:0!important;padding:4px!important;font-size:8pt!important;line-height:1.15!important}
-        .exr-client-notes{margin-top:5px!important;padding-top:5px!important}
-      }
-    `;
-  }
-  function allCss(){
-    let css='';
-    for(const sheet of Array.from(document.styleSheets||[])){
-      try{css+=Array.from(sheet.cssRules||[]).map(rule=>rule.cssText).join('\n')+'\n'}catch{}
-    }
-    return css+'\n'+reportExtraCss();
-  }
+  const reportStyles=`
+    @page{margin:10mm}
+    body{font:14pt/1.23 Arial,sans-serif;color:#111;background:white;margin:0}
+    header{margin-bottom:4pt}
+    .report-client{border-top:1.2pt solid #222;padding:4pt 0;overflow-wrap:anywhere}
+    .report-line{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:14pt}
+    .report-name{font-size:16pt}
+    .report-field{white-space:pre-line}
+    .report-job{padding-top:3pt;margin-top:3pt;border-top:.5pt solid #999;break-inside:avoid}
+    .report-client>div:not(.report-job){break-after:avoid}
+    @media screen{body{padding:12px}}
+  `;
   function reportDocument(type){
-    return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SIMOUN · Reporte por cliente</title><style>'+allCss()+'</style></head><body>'+reportBody(type)+'</body></html>';
+    return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>SIMOUN · Reporte para jefe</title><style>'+reportStyles+'</style></head><body>'+reportBody(type)+'</body></html>';
   }
   function openPrint(type){
     const win=window.open('','_blank');
@@ -139,7 +92,7 @@
       <div class="modal-body">
         <div class="field" style="margin-bottom:10px"><label>Filtrar clientes por servicio</label><select id="categoryReportType"></select></div>
         <div class="notice" style="margin-bottom:10px">El filtro muestra los clientes que tienen ese servicio y conserva sus datos; en cada ficha aparece únicamente el servicio seleccionado. “Todos” muestra todos sus servicios activos.</div>
-        <div id="categoryReportPreview" class="report-sheet"></div>
+        <style>#categoryReportPreview .report-line{display:flex;flex-wrap:wrap;column-gap:14pt}#categoryReportPreview .report-client{border-top:1px solid;padding:5px 0}#categoryReportPreview .report-field{white-space:pre-line}</style><div id="categoryReportPreview" class="report-sheet"></div>
         <div class="toolbar" style="margin-top:12px"><button class="btn secondary" type="button" id="categoryCopyBtn">📋 Copiar información</button><button class="btn" type="button" id="categoryPrintBtn">🖨️ Imprimir / Guardar como PDF</button><button class="btn secondary" type="button" id="categoryDownloadBtn">⬇️ Descargar ficha HTML</button></div>
         <div id="categoryReportStatus" class="muted" role="status" aria-live="polite"></div>
       </div>`;
@@ -171,51 +124,8 @@
     });
   }
 
-  function compactPrintCss(){
-    return `
-      body{margin:0;padding:12px;background:#fff;color:#10233f;font-family:Arial, sans-serif;font-size:10pt;line-height:1.3}
-      .report-heading{margin:0 0 10px;padding:0 0 7px;border-bottom:2px solid #0b2c55}
-      .report-heading h1{font-size:17pt;margin:0 0 3px}.report-heading p{margin:0;color:#334b67;font-size:9pt}
-      .report-sheet{max-width:none}
-      .compact-print-client{display:block!important;background:#fff;border:0!important;border-top:2px solid #0b2c55!important;border-radius:0!important;padding:8px 0 7px!important;margin:0!important;box-shadow:none!important;break-inside:auto;page-break-inside:auto}
-      .compact-print-client+.compact-print-client{border-top:3px double #0b2c55!important;margin-top:7px!important;padding-top:10px!important}
-      .compact-print-client .exr-card-head{padding:0 0 5px!important;border-bottom:1px solid #8797aa!important}
-      .compact-print-client .exr-card-head strong{font-size:12pt!important}
-      .compact-print-client .exr-contact{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:3px!important;padding:5px 0!important}
-      .compact-print-client .exr-field{padding:3px 5px!important;border:1px solid #c7d0dc!important;border-radius:2px!important}
-      .compact-print-client .exr-field small{font-size:7pt!important;margin:0!important}
-      .compact-print-client .exr-field strong,.compact-print-client .exr-field a{font-size:8pt!important}
-      .compact-print-client .exr-section-title{font-size:9pt!important;margin:7px 0 3px!important;padding-bottom:2px!important;border-bottom:1px solid #52657c!important}
-      .compact-print-client .exr-service{padding:5px 6px!important;margin:4px 0!important;border:1px solid #9aa8b8!important;border-left:3px solid #2e8bc0!important;border-radius:2px!important;break-inside:avoid-page;page-break-inside:avoid}
-      .compact-print-client .exr-service-head{gap:4px!important}
-      .compact-print-client .exr-details{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:3px!important;margin-top:4px!important}
-      .compact-print-client .exr-finance{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:3px!important;margin-top:4px!important}
-      .compact-print-client .exr-copy{font-size:8pt!important;line-height:1.22!important;margin-top:3px!important}
-      .compact-print-client .exr-print-note{white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;border:1px solid #c7d0dc;border-radius:2px;padding:4px!important;min-height:0!important;font-size:8pt!important;line-height:1.2!important}
-      .compact-print-client .exr-statuses{padding:3px!important;margin-top:3px!important;font-size:7pt!important}
-      .compact-print-client .badge,.compact-print-client .type-label{padding:2px 4px!important;font-size:7pt!important}
-      .compact-print-client .exr-service-head .btn{display:none!important}
-      .report-empty{padding:16px;text-align:center}
-      @page{size:auto;margin:6mm}
-      @media print{body{padding:0!important;font-size:9pt!important}.report-heading{margin-bottom:6px}.compact-print-client{padding-top:5px!important}.compact-print-client .exr-contact{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
-    `;
-  }
-  function compactPrintableCard(client,type){
-    const html=printableCard(client,type),holder=document.createElement('div');
-    holder.innerHTML=html;
-    const card=holder.firstElementChild;
-    if(card)card.classList.add('compact-print-client');
-    return card?card.outerHTML:'';
-  }
-  function compactReportBody(type){
-    const clients=reportClients(type),cards=clients.map(client=>compactPrintableCard(client,type)).join('');
-    return `<header class="report-heading"><h1>SIMOUN · Reporte para jefe</h1><p>Filtro: <strong>${escReport(type)}</strong> · ${clients.length} cliente${clients.length===1?'':'s'} · ${reportDate()}</p></header><main class="report-sheet">${cards||'<div class="report-empty">No hay clientes para este filtro.</div>'}</main>`;
-  }
-  function compactReportDocument(type){
-    return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SIMOUN · Impresión para jefe</title><style>'+allCss()+'\\n'+compactPrintCss()+'</style></head><body>'+compactReportBody(type)+'</body></html>';
-  }
   function downloadCompactReport(type){
-    const blob=new Blob([compactReportDocument(type)],{type:'text/html;charset=utf-8'});
+    const blob=new Blob([reportDocument(type)],{type:'text/html;charset=utf-8'});
     const url=URL.createObjectURL(blob),a=document.createElement('a');
     const slug=String(type||'todos').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
     a.href=url;a.download='SIMOUN-impresion-jefe-'+(slug||'todos')+'.html';document.body.appendChild(a);a.click();a.remove();
@@ -248,7 +158,7 @@
   }
   function refreshCompactDialog(dlg){
     const type=dlg.querySelector('#compactReportType').value||'Todos';
-    dlg.querySelector('#compactReportPreview').srcdoc=compactReportDocument(type);
+    dlg.querySelector('#compactReportPreview').srcdoc=reportDocument(type);
     dlg.querySelector('#compactReportStatus').textContent='';
   }
   function openCompactReport(type=currentType()){
