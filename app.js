@@ -1,4 +1,5 @@
-const PAGES=[["inicio","Inicio"],["calendario","Calendario"],["jornada","Jornada"],["expedientes","Clientes"],["monitoreos","Monitoreo"],["cotizaciones","Cotizaciones"],["remisiones","Remisiones"],["recibos","Recibos de pago"],["compras","Compras"]];
+let bankAgenda=[];
+const PAGES=[["inicio","Inicio"],["calendario","Calendario"],["jornada","Jornada"],["expedientes","Clientes"],["monitoreos","Monitoreo"],["cotizaciones","Cotizaciones"],["remisiones","Remisiones"],["recibos","Recibos de pago"],["compras","Compras"],["banco","Conciliación bancaria"]];
 const ISSUE_TYPES=['Pregunta','Seguimiento','Reparación','Instalación','Mantenimiento','Cotización','Facturación','Cobro','Trabajo incompleto','Trabajo futuro / promesa'];
 const TYPE_META={
   'Pregunta':{icon:'❓',color:'#7c3aed',bg:'#f3e8ff',ink:'#6d28d9'},
@@ -51,6 +52,7 @@ function showPage(id){
   document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===id));
   document.getElementById('fab').style.display=id==='expedientes'?'block':'none';
   if(id==='expedientes')renderClients(document.getElementById('clientSearch')?.value||'');
+  if(id==='banco'||id==='calendario')ensureBankFrame();
   if(id==='calendario')renderCalendar();
   if(id==='jornada'&&typeof renderJornada==='function')renderJornada();
   if(id==='cotizaciones'&&typeof renderQuotes==='function')renderQuotes();
@@ -218,14 +220,14 @@ function editIssue(cid,iid){
 function finishIssue(cid,iid){const c=state.clients.find(x=>x.id===cid),i=c?.issues?.find(x=>x.id===iid);if(!i)return;i.state='Terminado';i.history=i.history||[];i.history.push({date:new Date().toISOString(),action:'Marcado como terminado'});save();issueDlg.close();openClient(cid)}
 function deleteIssue(cid,iid,fromGroup=false){const c=state.clients.find(x=>x.id===cid),i=c?.issues?.find(x=>x.id===iid);if(!i)return;if(!confirmDelete(`¿Borrar este asunto de ${i.type}?`))return;c.issues=c.issues.filter(x=>x.id!==iid);save();if(!fromGroup){issueDlg.close();openClient(cid)}}
 
-function events(){return allIssues().filter(i=>i.active!==false).flatMap(i=>issueDates(i).map(d=>({date:d.date,label:d.label+' · '+i.type,client:i.client,issue:i}))).sort((a,b)=>a.date.localeCompare(b.date))}
+function events(){return allIssues().filter(i=>i.active!==false).flatMap(i=>issueDates(i).map(d=>({date:d.date,label:d.label+' · '+i.type,client:i.client,issue:i}))).concat((typeof bankAgenda==='undefined'?[]:bankAgenda).map(x=>({date:x.date,label:x.label,client:{id:x.id,name:x.name},issue:{type:x.label},bank:true}))).sort((a,b)=>a.date.localeCompare(b.date))}
 function renderCalendar(){
   const y=calCursor.getFullYear(),m=calCursor.getMonth();const first=new Date(y,m,1);let start=new Date(first);start.setDate(first.getDate()-((first.getDay()+6)%7));const ev=events();let cells='';
   for(let n=0;n<42;n++){const d=new Date(start);d.setDate(start.getDate()+n);const iso=d.toISOString().slice(0,10);const des=ev.filter(e=>e.date===iso);cells+=`<div class="day ${d.getMonth()!==m?'other':''} ${iso===today()?'today':''}" onclick="openDay('${iso}')"><div class="day-num">${d.getDate()}</div>${des.slice(0,3).map(e=>`<span class="event-dot">${esc(e.client.name)} · ${esc(e.issue.type)}</span>`).join('')}${des.length>3?`<span class="event-dot">+${des.length-3}</span>`:''}</div>`}
   document.getElementById('calendario').innerHTML=`<div class="calendar-head"><button class="btn secondary" onclick="moveMonth(-1)">‹</button><h2>${calCursor.toLocaleDateString('es-MX',{month:'long',year:'numeric'})}</h2><button class="btn secondary" onclick="moveMonth(1)">›</button></div><div class="calendar">${['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(x=>`<div class="dow">${x}</div>`).join('')}${cells}</div>`;
 }
 function moveMonth(x){calCursor.setMonth(calCursor.getMonth()+x);renderCalendar()}
-function openDay(iso){const es=events().filter(e=>e.date===iso);document.getElementById('dayDlgTitle').textContent='Agenda · '+fmt(iso);document.getElementById('dayDlgBody').innerHTML=es.map(e=>`<div class="card" style="${typeStyle(e.issue.type)};border-left:5px solid var(--type)"><strong>${esc(e.client.name)} · ${esc(e.issue.type)}</strong><div class="muted">${esc(e.label)} ${e.issue.appointmentWindow?'· '+esc(e.issue.appointmentWindow):''}</div><div style="margin-top:8px"><button class="btn sm" onclick="dayDlg.close();openClient('${e.client.id}')">Abrir expediente</button></div></div>`).join('')||'<div class="empty">No hay eventos este día.</div>';dayDlg.showModal()}
+function openDay(iso){const es=events().filter(e=>e.date===iso);document.getElementById('dayDlgTitle').textContent='Agenda · '+fmt(iso);document.getElementById('dayDlgBody').innerHTML=es.map(e=>`<div class="card" style="${typeStyle(e.issue.type)};border-left:5px solid var(--type)"><strong>${esc(e.client.name)} · ${esc(e.issue.type)}</strong><div class="muted">${esc(e.label)} ${e.issue.appointmentWindow?'· '+esc(e.issue.appointmentWindow):''}</div><div style="margin-top:8px"><button class="btn sm" onclick="dayDlg.close();${e.bank?'openBankCase':'openClient'}('${e.client.id}')">${e.bank?'Dar seguimiento':'Abrir expediente'}</button></div></div>`).join('')||'<div class="empty">No hay eventos este día.</div>';dayDlg.showModal()}
 
 function renderMonitors(){document.getElementById('monitoreos').innerHTML=`<div class="notice">Módulo separado dentro de la misma aplicación. Esta versión permite guardar, editar y borrar clientes de monitoreo.</div><div class="section-title"><h2>Monitoreos</h2><button class="btn" onclick="addMonitor()">+ Cliente</button></div><div class="list">${state.monitors.map(m=>`<div class="card monitor-row"><div class="wide"><strong>${esc(m.name)}</strong><div class="muted">${esc(m.company||'')}</div></div><div><small class="muted">Mensualidad</small><br>${money(m.monthly||0)}</div><div><small class="muted">Cubierto hasta</small><br>${esc(m.coveredThrough||'Sin dato')}</div><div class="split-actions"><button class="btn sm secondary" onclick="editMonitor('${m.id}')">Editar</button><button class="btn sm danger" onclick="deleteMonitor('${m.id}')">Borrar</button></div></div>`).join('')||'<div class="empty">Aún no hay clientes de monitoreo.</div>'}</div>`}
 function addMonitor(){const name=prompt('Nombre del cliente de monitoreo');if(!name)return;state.monitors.push({id:uid(),name,company:'',monthly:0,coveredThrough:'',payments:[]});save()}
@@ -265,3 +267,19 @@ nav();renderAll();document.getElementById('fab').onclick=newClient;showPage('ini
 window.SimounSync?.init({getState:()=>state,applyState:(remote)=>{state=remote;renderAll()}});
 if('serviceWorker' in navigator && location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn))}
 window.addEventListener('online',()=>window.SimounSync?.refreshStatus?.());window.addEventListener('offline',()=>window.SimounSync?.refreshStatus?.());
+
+
+function ensureBankFrame(){
+  const frame=document.getElementById('bankFrame');
+  if(frame&&!frame.getAttribute('src'))frame.src='./conciliaciones/';
+}
+window.addEventListener('message',event=>{
+  const frame=document.getElementById('bankFrame');
+  if(event.origin!==location.origin||event.source!==frame?.contentWindow||event.data?.kind!=='simoun-bank-agenda')return;
+  bankAgenda=(event.data.items||[]).filter(x=>/^[\da-f-]{36}$/i.test(x.id)&&/^\d{4}-\d{2}-\d{2}$/.test(x.date));
+  renderCalendar();
+});
+function openBankCase(id){
+  showPage('banco');
+  document.getElementById('bankFrame').src='./conciliaciones/?seguimiento='+encodeURIComponent(id);
+}
