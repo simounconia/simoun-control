@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es">
 <head>
-<script>try{if(localStorage.getItem('simoun.screen-lock.v1'))document.documentElement.classList.add('simoun-screen-locked')}catch{}</script>
+
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>SIMOUN · Control Operativo</title>
@@ -50,54 +50,9 @@ html.simoun-screen-locked body{overflow:hidden}
 </style>
 </head>
 <body>
-<dialog id="screenLock" hidden aria-labelledby="screenLockTitle"><form class="card" id="screenLockForm">
-<h2 id="screenLockTitle">SIMOUN está bloqueado</h2><p id="screenLockHint"></p>
-<label class="field">Clave<input name="password" type="password" required autocomplete="current-password"></label>
-<label class="field" hidden>Repite tu clave<input name="repeat" type="password" autocomplete="new-password"></label>
-<p role="status" id="screenLockMessage"></p><button class="btn" type="submit">Desbloquear</button>
-<button class="btn secondary" type="button" id="screenLockCancel" hidden>Cancelar</button></form></dialog>
-<div id="privateGate"><div class="gate-card"><h2>SIMOUN privado</h2><p>El acceso a esta app está limitado a la cuenta administradora.</p><button class="btn" type="button" onclick="SimounSync.openSettings('Inicia sesión con tu cuenta administradora.')">Iniciar sesión</button></div></div>
-<div class="app">
-<header class="topbar">
-  <h1>SIMOUN · Control Operativo</h1><small>Clientes, servicios, agenda y monitoreos</small>
-  <nav class="nav" id="nav"></nav>
-  <button class="btn secondary" type="button" id="screenLockButton">🔒 Bloquear</button>
-</header>
-<main class="wrap">
-<section id="inicio" class="page active"></section>
-<section id="expedientes" class="page"></section>
-<section id="calendario" class="page"></section>
-<section id="monitoreos" class="page"></section>
-<section id="jornada" class="page"></section>
-<section id="cotizaciones" class="page"></section>
-<section id="remisiones" class="page"></section>
-<section id="recibos" class="page"></section>
-<section id="compras" class="page"></section><section id="banco" class="page"></section>
-<div class="footer-note">SIMOUN funciona también sin internet. Si activas la sincronización privada, los expedientes y documentos se comparten entre tus dispositivos autorizados.</div>
-</main>
-<button class="fab" id="fab" title="Nuevo expediente">+</button>
-</div>
-<dialog id="clientDlg"><div class="modal-head"><strong id="clientDlgTitle">Expediente</strong><button class="close" onclick="clientDlg.close()">×</button></div><div class="modal-body" id="clientDlgBody"></div></dialog>
-<dialog id="issueDlg"><div class="modal-head"><strong id="issueDlgTitle">Asunto</strong><button class="close" onclick="issueDlg.close()">×</button></div><div class="modal-body" id="issueDlgBody"></div></dialog>
-<dialog id="dayDlg"><div class="modal-head"><strong id="dayDlgTitle">Agenda del día</strong><button class="close" onclick="dayDlg.close()">×</button></div><div class="modal-body" id="dayDlgBody"></div></dialog>
-<dialog id="syncDlg"><div class="modal-head"><strong>Sincronización privada</strong><button class="close" onclick="syncDlg.close()">×</button></div><div class="modal-body" id="syncDlgBody"></div></dialog>
-<dialog id="monitorDlg"><div class="modal-head"><strong id="monitorDlgTitle">Cliente de monitoreo</strong><button class="close" onclick="monitorDlg.close()">×</button></div><div class="modal-body" id="monitorDlgBody"></div></dialog>
-<dialog id="paymentDlg"><div class="modal-head"><strong id="paymentDlgTitle">Pago de monitoreo</strong><button class="close" onclick="paymentDlg.close()">×</button></div><div class="modal-body" id="paymentDlgBody"></div></dialog>
-<script src="bloqueo.js"></script>
-<script src="sync.js?v=20261123-banco-nativo"></script>
-<script src="app.js?v=20261123-banco-nativo"></script>
-<script src="monitoreos.js?v=20261123-6"></script>
-<script src="captura-rapida.js?v=20261019-6"></script>
-
-<script src="reportes-categorias.js?v=20261123-5"></script>
-<script src="expedientes-resumen.js?v=20261123-5"></script>
-<script src="jornada.js?v=20261123-8"></script>
-<script src="servicios-clientes.js?v=20261123-4"></script>
-<script src="vendor/html2pdf.bundle.min.js?v=0.14.0"></script>
-<script src="documentos.js?v=20261123-7"></script>
-<script src="simoun-logo-data.js?v=20261117-1"></script>
-<script src="cotizacion-diseno.js?v=20261117-5"></script>
-<script src="recibos.js?v=20261123-7"></script>
-<script src="documentos-unificados.js?v=20261117-2"></script>
-</body>
-</html>
+<main id="privateGate"><form class="gate-card" id="ownerLogin"><h2>Acceso denegado</h2><p>Inicia sesión para abrir SIMOUN Control Operativo.</p>
+<label class="field">Correo<input name="email" type="email" autocomplete="username" required></label>
+<label class="field">Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
+<button class="btn">Iniciar sesión</button><p role="status" id="ownerStatus"></p></form></main>
+<script src="sync.js?v=owner1"></script><script src="acceso.js?v=1"></script>
+</body></html>
