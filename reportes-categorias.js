@@ -11,9 +11,9 @@
     return (client.issues||[]).filter(i=>i.active!==false&&!['Terminado','Cancelado'].includes(i.state));
   }
   function reportClients(type){
-    return (Array.isArray(state?.clients)?state.clients:[])
+    return orderedClients(type)
       .filter(c=>type==='Todos'||visibleReportIssues(c).some(i=>i.type===type))
-      .slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'es'));
+      ;
   }
   function reportDate(){return new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'})}
 
