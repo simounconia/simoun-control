@@ -117,18 +117,18 @@ function editClient(c,isNew){
   document.getElementById('clientDlgTitle').textContent=isNew?'Nuevo expediente':(c.name||'Expediente');
   document.getElementById('clientDlgBody').innerHTML=`
     <form id="clientForm">
-      <div class="row"><div class="field"><label>Cliente</label><input name="name" value="${esc(c.name)}" required></div><div class="field"><label>Relación</label><input name="contact" value="${esc(c.contact)}"></div></div>
-      <div class="row"><div class="field"><label>Empresa</label><input name="company" value="${esc(c.company)}"></div><div class="field"><label>Teléfono</label><input name="phone" value="${esc(c.phone)}"></div></div>
+      <div class="field"><label>Cliente</label><input name="name" value="${esc(c.name)}" required></div>
+<div class="field"><label>Teléfono</label><input name="phone" value="${esc(c.phone)}"></div>
       <div class="field"><label>WhatsApp</label><input name="whatsapp" value="${esc(c.whatsapp)}"></div>
       <div class="field"><label>Dirección</label><textarea name="address">${esc(c.address)}</textarea></div>
-      <div class="field"><label>Horarios generales de visita del cliente</label><input name="visitHours" value="${esc(c.visitHours||'')}" placeholder="Ej. Lunes a viernes de 10:00 a 14:00"></div>
-      <div class="field"><label>Observaciones generales del cliente</label><textarea name="notes">${esc(c.notes)}</textarea></div>
+      <div class="field"><label for="clientNotes">Nota del cliente</label><small>Horarios generales de visita y observaciones generales del cliente.</small><textarea id="clientNotes" name="notes">${esc([c.visitHours,c.notes].filter(Boolean).join("\n"))}</textarea></div>
+
       <div class="toolbar"><button class="btn" type="submit">💾 Guardar expediente</button>${!isNew?`<button type="button" class="btn secondary" onclick="newIssue('${c.id}')">+ Nuevo asunto</button><button type="button" class="btn danger" onclick="deleteClient('${c.id}',true)">🗑️ Borrar expediente</button>`:''}</div>
     </form>
-    ${!isNew?`<div class="section-title"><h3>Asuntos</h3><span class="muted">${(c.issues||[]).length}</span></div><div class="list">${(c.issues||[]).map(i=>issueCard(c,i)).join('')||'<div class="empty">Todavía no hay asuntos.</div>'}</div>
+    ${!isNew?`${clientWorkHistory(c)}
     <div class="section-title"><h3>Documentos</h3></div><div class="notice">Los archivos se guardan localmente en este dispositivo.</div><div class="toolbar" style="margin-top:8px"><input type="file" id="docFile"><button class="btn secondary" type="button" onclick="addDoc('${c.id}')">Adjuntar</button></div><div id="docsList">${(c.docs||[]).map(d=>`<div class="doc"><span>📎 ${esc(d.name)} <small class="muted">${Math.round(d.size/1024)} KB</small></span><div class="split-actions"><button class="btn sm light" onclick="downloadDoc('${c.id}','${d.id}')">Abrir</button><button class="btn sm danger" onclick="deleteDoc('${c.id}','${d.id}')">Borrar</button></div></div>`).join('')}</div>`:''}`;
   document.getElementById('clientForm').onsubmit=e=>{
-    e.preventDefault();const fd=new FormData(e.target);['name','contact','company','phone','whatsapp','address','visitHours','notes'].forEach(k=>c[k]=fd.get(k));
+    e.preventDefault();const fd=new FormData(e.target);['name','phone','whatsapp','address','notes'].forEach(k=>c[k]=fd.get(k));c.visitHours='';
     if(isNew)state.clients.unshift(c);save();clientDlg.close();openClient(c.id);
   };
   clientDlg.showModal();
