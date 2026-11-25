@@ -1,6 +1,6 @@
 (() => {
  const auth=window.SimounSync, form=document.getElementById('ownerLogin'), message=document.getElementById('ownerStatus');
- const scripts=["bloqueo.js","app.js?v=20261125-citas-clientes-v2","monitoreos.js?v=20261123-6","captura-rapida.js?v=20261019-6","reportes-categorias.js?v=20261123-5","expedientes-resumen.js?v=20261125-orden-automatico-v2","jornada.js?v=20261123-8","servicios-clientes.js?v=20261125-cita-unica-v2","vendor/html2pdf.bundle.min.js?v=0.14.0","documentos.js?v=20261123-7","simoun-logo-data.js?v=20261117-1","cotizacion-diseno.js?v=20261117-5","recibos.js?v=20261123-7","documentos-unificados.js?v=20261117-2"];
+ const scripts=["bloqueo.js","app.js?v=20261125-orden-hora-v1","monitoreos.js?v=20261123-6","captura-rapida.js?v=20261019-6","reportes-categorias.js?v=20261123-5","expedientes-resumen.js?v=20261125-orden-automatico-v2","jornada.js?v=20261123-8","servicios-clientes.js?v=20261125-orden-hora-v1","vendor/html2pdf.bundle.min.js?v=0.14.0","documentos.js?v=20261123-7","simoun-logo-data.js?v=20261117-1","cotizacion-diseno.js?v=20261117-5","recibos.js?v=20261123-7","documentos-unificados.js?v=20261117-2"];
  let started=false;
  function leave(){document.documentElement.style.visibility='hidden';location.reload();}
  window.addEventListener('storage',e=>{if(started && (e.key===null||e.key==='simoun_sync_session_v1')&&!auth.loggedIn())leave()});
