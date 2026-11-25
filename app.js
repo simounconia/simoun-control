@@ -224,7 +224,7 @@ function deleteIssue(cid,iid,fromGroup=false){const c=state.clients.find(x=>x.id
 function calendarBaseEvents(){return allIssues().filter(i=>i.active!==false).flatMap(i=>issueDates(i).map(d=>({date:d.date,label:d.label+' · '+i.type,client:i.client,issue:i}))).concat((typeof bankAgenda==='undefined'?[]:bankAgenda).map(x=>({date:x.date,label:x.label,client:{id:x.id,name:x.name},issue:{type:x.label},bank:true}))).sort((a,b)=>a.date.localeCompare(b.date))}
 function renderCalendar(){
   const y=calCursor.getFullYear(),m=calCursor.getMonth();const first=new Date(y,m,1);let start=new Date(first);start.setDate(first.getDate()-((first.getDay()+6)%7));const ev=events();let cells='';
-  for(let n=0;n<42;n++){const d=new Date(start);d.setDate(start.getDate()+n);const iso=d.toISOString().slice(0,10);const des=ev.filter(e=>e.date===iso);cells+=`<div class="day ${d.getMonth()!==m?'other':''} ${iso===today()?'today':''}" onclick="openDay('${iso}')"><div class="day-num">${d.getDate()}</div>${des.slice(0,3).map(e=>`<span class="event-dot">${esc(e.daily?'Nota del día':e.noteId?'Nota':e.client.name+' · '+e.issue.type)}</span>`).join('')}${des.length>3?`<span class="event-dot calendar-more">+${des.length-3}</span>`:''}</div>`}
+  for(let n=0;n<42;n++){const d=new Date(start);d.setDate(start.getDate()+n);const iso=d.toISOString().slice(0,10);const des=ev.filter(e=>e.date===iso);cells+=`<div class="day ${d.getMonth()!==m?'other':''} ${iso===today()?'today':''}" onclick="openDay('${iso}')"><div class="day-num">${d.getDate()}</div>${des.slice(0,3).map(e=>`<span class="event-dot">${esc(e.daily?'Nota del día':e.noteId?'Nota':e.taskId?(e.taskDone?'✓ ':'○ ')+e.client.name:e.client.name+' · '+e.issue.type)}</span>`).join('')}${des.length>3?`<span class="event-dot calendar-more">+${des.length-3}</span>`:''}</div>`}
   document.getElementById('calendario').innerHTML=`<div class="calendar-head"><button class="btn secondary" onclick="moveMonth(-1)">‹</button><h2>${calCursor.toLocaleDateString('es-MX',{month:'long',year:'numeric'})}</h2><button class="btn secondary" onclick="moveMonth(1)">›</button></div><div class="calendar">${['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(x=>`<div class="dow">${x}</div>`).join('')}${cells}</div>`;
 }
 function moveMonth(x){calCursor.setMonth(calCursor.getMonth()+x);renderCalendar()}
@@ -232,6 +232,10 @@ function moveMonth(x){calCursor.setMonth(calCursor.getMonth()+x);renderCalendar(
 function calendarKey(e){return e.key||JSON.stringify([e.bank?'bank':'issue',e.client.id,e.issue.id||'',e.label,e.date])}
 function events(){
   const entries=calendarBaseEvents();
+  for(const t of state.jornada?.tasks||[]){
+    if(!t.date||!t.id)continue;
+    entries.push({date:t.date,key:'task:'+t.id,label:[t.type,t.note].filter(Boolean).join(' · '),client:{name:t.title||'Pendiente'},issue:{type:'Pendiente'},taskId:t.id,taskDone:!!t.done});
+  }
   for(const [date,note] of Object.entries(state.jornada?.dailyNotes||{})){
     if(typeof note==='string'&&note.trim())entries.push({date,key:'daily:'+date,label:note,client:{name:'Nota del día'},issue:{type:'Nota'},daily:true});
   }
@@ -266,14 +270,24 @@ function calendarDeleteNote(date,index){
   if(state.calendarOrder?.[date])state.calendarOrder[date]=state.calendarOrder[date].filter(k=>k!==calendarKey(e));
   save();openDay(date);
 }
+function calendarToggleTask(date,index){
+  const e=events().filter(x=>x.date===date)[index];
+  if(!e?.taskId||typeof toggleJTask!=='function')return;
+  toggleJTask(e.taskId);openDay(date);
+}
+function calendarEditTask(date,index){
+  const e=events().filter(x=>x.date===date)[index];
+  if(!e?.taskId||typeof editJTask!=='function')return;
+  dayDlg.close();editJTask(e.taskId);
+}
 function openDay(iso){
   const es=events().filter(e=>e.date===iso);
   document.getElementById('dayDlgTitle').textContent='Agenda · '+fmt(iso);
   const body=document.getElementById('dayDlgBody');
   body.innerHTML='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><button class="btn sm" onclick="calendarAddNote(\''+iso+'\')">+ Nota</button><span class="muted">Usa ↑ y ↓ para ordenar el día.</span></div>'+ (es.map((e,i)=>{
     const note=e.daily||e.noteId;
-    const buttons=note?'<button class="btn sm secondary" onclick="calendarEditNote(\''+iso+'\','+i+')">Editar nota</button>'+(e.noteId?'<button class="btn sm danger" onclick="calendarDeleteNote(\''+iso+'\','+i+')">Borrar</button>':''):'<button class="btn sm" onclick="dayDlg.close();'+(e.bank?'openBankCase':'openClient')+'(\''+esc(e.client.id)+'\')">'+(e.bank?'Dar seguimiento':'Abrir expediente')+'</button>';
-    return '<div class="card" style="'+typeStyle(e.issue.type)+';border-left:5px solid var(--type)"><strong>'+esc(e.client.name)+(note?'':' · '+esc(e.issue.type))+'</strong><div class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(e.label)+(e.issue.appointmentWindow?' · '+esc(e.issue.appointmentWindow):'')+'</div>'+(!note&&!e.bank?'<div style="margin-top:8px;padding:8px 10px;background:#f3f6fa;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere"><strong style="display:block;font-size:12px;margin-bottom:3px">Notas internas del cliente</strong>'+esc(state.clients.find(c=>c.id===e.client.id)?.internalNotes||'Sin notas internas guardadas')+'</div>':'')+'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm secondary" aria-label="Mover arriba" '+(i===0?'disabled':'')+' onclick="calendarMove(\''+iso+'\','+i+',-1)">↑</button><button type="button" class="btn sm secondary" aria-label="Mover abajo" '+(i===es.length-1?'disabled':'')+' onclick="calendarMove(\''+iso+'\','+i+',1)">↓</button>'+buttons+'</div></div>';
+    const buttons=e.taskId?'<button class="btn sm secondary" onclick="calendarToggleTask(\''+iso+'\','+i+')">'+(e.taskDone?'Reabrir':'✓ Marcar realizado')+'</button><button class="btn sm" onclick="calendarEditTask(\''+iso+'\','+i+')">Editar pendiente</button>':note?'<button class="btn sm secondary" onclick="calendarEditNote(\''+iso+'\','+i+')">Editar nota</button>'+(e.noteId?'<button class="btn sm danger" onclick="calendarDeleteNote(\''+iso+'\','+i+')">Borrar</button>':''):'<button class="btn sm" onclick="dayDlg.close();'+(e.bank?'openBankCase':'openClient')+'(\''+esc(e.client.id)+'\')">'+(e.bank?'Dar seguimiento':'Abrir expediente')+'</button>';
+    return '<div class="card" style="'+typeStyle(e.issue.type)+';border-left:5px solid var(--type)"><strong style="'+(e.taskDone?'text-decoration:line-through;color:#64748b':'')+'">'+(e.taskDone?'✓ ':'')+esc(e.client.name)+(note?'':' · '+esc(e.issue.type))+'</strong><div class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(e.label)+(e.issue.appointmentWindow?' · '+esc(e.issue.appointmentWindow):'')+'</div>'+(!note&&!e.bank&&!e.taskId?'<div style="margin-top:8px;padding:8px 10px;background:#f3f6fa;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere"><strong style="display:block;font-size:12px;margin-bottom:3px">Notas internas del cliente</strong>'+esc(state.clients.find(c=>c.id===e.client.id)?.internalNotes||'Sin notas internas guardadas')+'</div>':'')+'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm secondary" aria-label="Mover arriba" '+(i===0?'disabled':'')+' onclick="calendarMove(\''+iso+'\','+i+',-1)">↑</button><button type="button" class="btn sm secondary" aria-label="Mover abajo" '+(i===es.length-1?'disabled':'')+' onclick="calendarMove(\''+iso+'\','+i+',1)">↓</button>'+buttons+'</div></div>';
   }).join('')||'<div class="empty">No hay eventos este día.</div>');
   if(!dayDlg.open)dayDlg.showModal();
 }
