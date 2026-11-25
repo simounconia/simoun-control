@@ -220,14 +220,62 @@ function editIssue(cid,iid){
 function finishIssue(cid,iid){const c=state.clients.find(x=>x.id===cid),i=c?.issues?.find(x=>x.id===iid);if(!i)return;i.state='Terminado';i.history=i.history||[];i.history.push({date:new Date().toISOString(),action:'Marcado como terminado'});save();issueDlg.close();openClient(cid)}
 function deleteIssue(cid,iid,fromGroup=false){const c=state.clients.find(x=>x.id===cid),i=c?.issues?.find(x=>x.id===iid);if(!i)return;if(!confirmDelete(`¿Borrar este asunto de ${i.type}?`))return;c.issues=c.issues.filter(x=>x.id!==iid);save();if(!fromGroup){issueDlg.close();openClient(cid)}}
 
-function events(){return allIssues().filter(i=>i.active!==false).flatMap(i=>issueDates(i).map(d=>({date:d.date,label:d.label+' · '+i.type,client:i.client,issue:i}))).concat((typeof bankAgenda==='undefined'?[]:bankAgenda).map(x=>({date:x.date,label:x.label,client:{id:x.id,name:x.name},issue:{type:x.label},bank:true}))).sort((a,b)=>a.date.localeCompare(b.date))}
+function calendarBaseEvents(){return allIssues().filter(i=>i.active!==false).flatMap(i=>issueDates(i).map(d=>({date:d.date,label:d.label+' · '+i.type,client:i.client,issue:i}))).concat((typeof bankAgenda==='undefined'?[]:bankAgenda).map(x=>({date:x.date,label:x.label,client:{id:x.id,name:x.name},issue:{type:x.label},bank:true}))).sort((a,b)=>a.date.localeCompare(b.date))}
 function renderCalendar(){
   const y=calCursor.getFullYear(),m=calCursor.getMonth();const first=new Date(y,m,1);let start=new Date(first);start.setDate(first.getDate()-((first.getDay()+6)%7));const ev=events();let cells='';
-  for(let n=0;n<42;n++){const d=new Date(start);d.setDate(start.getDate()+n);const iso=d.toISOString().slice(0,10);const des=ev.filter(e=>e.date===iso);cells+=`<div class="day ${d.getMonth()!==m?'other':''} ${iso===today()?'today':''}" onclick="openDay('${iso}')"><div class="day-num">${d.getDate()}</div>${des.slice(0,3).map(e=>`<span class="event-dot">${esc(e.client.name)} · ${esc(e.issue.type)}</span>`).join('')}${des.length>3?`<span class="event-dot">+${des.length-3}</span>`:''}</div>`}
+  for(let n=0;n<42;n++){const d=new Date(start);d.setDate(start.getDate()+n);const iso=d.toISOString().slice(0,10);const des=ev.filter(e=>e.date===iso);cells+=`<div class="day ${d.getMonth()!==m?'other':''} ${iso===today()?'today':''}" onclick="openDay('${iso}')"><div class="day-num">${d.getDate()}</div>${des.slice(0,3).map(e=>`<span class="event-dot">${esc(e.daily||e.noteId?e.label:e.client.name+' · '+e.issue.type)}</span>`).join('')}${des.length>3?`<span class="event-dot">+${des.length-3}</span>`:''}</div>`}
   document.getElementById('calendario').innerHTML=`<div class="calendar-head"><button class="btn secondary" onclick="moveMonth(-1)">‹</button><h2>${calCursor.toLocaleDateString('es-MX',{month:'long',year:'numeric'})}</h2><button class="btn secondary" onclick="moveMonth(1)">›</button></div><div class="calendar">${['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(x=>`<div class="dow">${x}</div>`).join('')}${cells}</div>`;
 }
 function moveMonth(x){calCursor.setMonth(calCursor.getMonth()+x);renderCalendar()}
-function openDay(iso){const es=events().filter(e=>e.date===iso);document.getElementById('dayDlgTitle').textContent='Agenda · '+fmt(iso);document.getElementById('dayDlgBody').innerHTML=es.map(e=>`<div class="card" style="${typeStyle(e.issue.type)};border-left:5px solid var(--type)"><strong>${esc(e.client.name)} · ${esc(e.issue.type)}</strong><div class="muted">${esc(e.label)} ${e.issue.appointmentWindow?'· '+esc(e.issue.appointmentWindow):''}</div><div style="margin-top:8px"><button class="btn sm" onclick="dayDlg.close();${e.bank?'openBankCase':'openClient'}('${e.client.id}')">${e.bank?'Dar seguimiento':'Abrir expediente'}</button></div></div>`).join('')||'<div class="empty">No hay eventos este día.</div>';dayDlg.showModal()}
+
+function calendarKey(e){return e.key||JSON.stringify([e.bank?'bank':'issue',e.client.id,e.issue.id||'',e.label,e.date])}
+function events(){
+  const entries=calendarBaseEvents();
+  for(const [date,note] of Object.entries(state.jornada?.dailyNotes||{})){
+    if(typeof note==='string'&&note.trim())entries.push({date,key:'daily:'+date,label:note,client:{name:'Nota del día'},issue:{type:'Nota'},daily:true});
+  }
+  for(const n of state.calendarNotes||[])entries.push({date:n.date,key:'note:'+n.id,label:n.text,client:{name:'Nota'},issue:{type:'Nota'},noteId:n.id});
+  const ranks=new Map();
+  for(const [date,keys] of Object.entries(state.calendarOrder||{}))if(Array.isArray(keys))ranks.set(date,new Map(keys.map((key,i)=>[key,i])));
+  return entries.sort((a,b)=>a.date.localeCompare(b.date)||((ranks.get(a.date)?.get(calendarKey(a))??Infinity)-(ranks.get(b.date)?.get(calendarKey(b))??Infinity)));
+}
+function calendarMove(date,index,step){
+  const items=events().filter(e=>e.date===date),target=index+step;
+  if(index<0||target<0||target>=items.length)return;
+  [items[index],items[target]]=[items[target],items[index]];
+  (state.calendarOrder ||= {})[date]=items.map(calendarKey);
+  save();openDay(date);
+}
+function calendarAddNote(date){
+  const value=prompt('Escribe la nota para '+fmt(date)+':');
+  if(!value?.trim())return;
+  (state.calendarNotes ||= []).push({id:uid(),date,text:value.trim()});
+  save();openDay(date);
+}
+function calendarEditNote(date,index){
+  const e=events().filter(x=>x.date===date)[index];if(!e||(!e.daily&&!e.noteId))return;
+  const value=prompt('Editar nota:',e.label);if(value===null||!value.trim())return;
+  if(e.daily)state.jornada.dailyNotes[date]=value.trim();
+  else{const n=state.calendarNotes.find(x=>x.id===e.noteId);if(!n)return;n.text=value.trim()}
+  save();openDay(date);
+}
+function calendarDeleteNote(date,index){
+  const e=events().filter(x=>x.date===date)[index];if(!e?.noteId||!confirmDelete('¿Borrar esta nota?'))return;
+  state.calendarNotes=state.calendarNotes.filter(n=>n.id!==e.noteId);
+  if(state.calendarOrder?.[date])state.calendarOrder[date]=state.calendarOrder[date].filter(k=>k!==calendarKey(e));
+  save();openDay(date);
+}
+function openDay(iso){
+  const es=events().filter(e=>e.date===iso);
+  document.getElementById('dayDlgTitle').textContent='Agenda · '+fmt(iso);
+  const body=document.getElementById('dayDlgBody');
+  body.innerHTML='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><button class="btn sm" onclick="calendarAddNote(\''+iso+'\')">+ Nota</button><span class="muted">Usa ↑ y ↓ para ordenar el día.</span></div>'+ (es.map((e,i)=>{
+    const note=e.daily||e.noteId;
+    const buttons=note?'<button class="btn sm secondary" onclick="calendarEditNote(\''+iso+'\','+i+')">Editar nota</button>'+(e.noteId?'<button class="btn sm danger" onclick="calendarDeleteNote(\''+iso+'\','+i+')">Borrar</button>':''):'<button class="btn sm" onclick="dayDlg.close();'+(e.bank?'openBankCase':'openClient')+'(\''+esc(e.client.id)+'\')">'+(e.bank?'Dar seguimiento':'Abrir expediente')+'</button>';
+    return '<div class="card" style="'+typeStyle(e.issue.type)+';border-left:5px solid var(--type)"><strong>'+esc(e.client.name)+(note?'':' · '+esc(e.issue.type))+'</strong><div class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(e.label)+(e.issue.appointmentWindow?' · '+esc(e.issue.appointmentWindow):'')+'</div><div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm secondary" aria-label="Mover arriba" '+(i===0?'disabled':'')+' onclick="calendarMove(\''+iso+'\','+i+',-1)">↑</button><button type="button" class="btn sm secondary" aria-label="Mover abajo" '+(i===es.length-1?'disabled':'')+' onclick="calendarMove(\''+iso+'\','+i+',1)">↓</button>'+buttons+'</div></div>';
+  }).join('')||'<div class="empty">No hay eventos este día.</div>');
+  if(!dayDlg.open)dayDlg.showModal();
+}
 
 function renderMonitors(){document.getElementById('monitoreos').innerHTML=`<div class="notice">Módulo separado dentro de la misma aplicación. Esta versión permite guardar, editar y borrar clientes de monitoreo.</div><div class="section-title"><h2>Monitoreos</h2><button class="btn" onclick="addMonitor()">+ Cliente</button></div><div class="list">${state.monitors.map(m=>`<div class="card monitor-row"><div class="wide"><strong>${esc(m.name)}</strong><div class="muted">${esc(m.company||'')}</div></div><div><small class="muted">Mensualidad</small><br>${money(m.monthly||0)}</div><div><small class="muted">Cubierto hasta</small><br>${esc(m.coveredThrough||'Sin dato')}</div><div class="split-actions"><button class="btn sm secondary" onclick="editMonitor('${m.id}')">Editar</button><button class="btn sm danger" onclick="deleteMonitor('${m.id}')">Borrar</button></div></div>`).join('')||'<div class="empty">Aún no hay clientes de monitoreo.</div>'}</div>`}
 function addMonitor(){const name=prompt('Nombre del cliente de monitoreo');if(!name)return;state.monitors.push({id:uid(),name,company:'',monthly:0,coveredThrough:'',payments:[]});save()}
