@@ -99,18 +99,35 @@ function jRoutineRows(j,done){
       '<button type="button" class="j-routine-delete" title="Borrar paso" aria-label="Borrar '+jesc(r.title)+'" onclick="deleteJRoutine(event,\''+r.id+'\')">×</button></div></div>';
   }).join('');
 }
-let jornadaTaskQuery='';
+let jornadaTaskQuery='',jornadaView='pendientes',jornadaTypeFilter='Todos',jornadaDateFilter='todos';
+function jornadaSetView(view){
+ if(!['pendientes','rutina','notas'].includes(view))return;
+ jornadaView=view;renderJornada();
+}
+function jornadaFilter(type,date){
+ jornadaTypeFilter=type;jornadaDateFilter=date;renderJornada();
+}
+function jornadaFilterDate(t,day){
+ return jornadaDateFilter==='todos'||(jornadaDateFilter==='hoy'&&t.date===day)||(jornadaDateFilter==='vencidos'&&!!t.date&&t.date<day)||(jornadaDateFilter==='proximos'&&!!t.date&&t.date>day)||(jornadaDateFilter==='sinfecha'&&!t.date);
+}
+function jornadaDashboard(tasks,day){
+ const open=tasks.filter(t=>!t.done);
+ const metrics=[['todos','Abiertos',open.length],['hoy','Hoy',open.filter(t=>t.date===day).length],['vencidos','Vencidos',open.filter(t=>t.date&&t.date<day).length],['proximos','Próximos',open.filter(t=>t.date&&t.date>day).length],['sinfecha','Sin fecha',open.filter(t=>!t.date).length]];
+ return '<div class="j-metrics">'+metrics.map(([key,label,count])=>'<button type="button" class="j-metric '+(jornadaDateFilter===key?'selected':'')+'" onclick="jornadaFilter(jornadaTypeFilter,\''+key+'\')"><span>'+label+'</span><strong>'+count+'</strong></button>').join('')+'</div><div class="j-type-tabs">'+['Todos',...J_TASK_TYPES].map((type,i)=>'<button type="button" style="--chip:'+(J_TASK_COLORS[type]||'#12365b')+'" class="'+(jornadaTypeFilter===type?'selected':'')+'" onclick="jornadaFilter('+ (i===0?"\'Todos\'":"J_TASK_TYPES["+(i-1)+"]") +',jornadaDateFilter)">'+jesc(type)+' · '+open.filter(t=>(type==='Todos'||jTaskType(t)===type)&&jornadaFilterDate(t,day)).length+'</button>').join('')+'</div>';
+}
 function jornadaTaskResults(tasks,day){
   const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const words=normalize(jornadaTaskQuery).trim().split(/\s+/).filter(Boolean);
   const matches=tasks.filter(t=>{
+    if(jornadaTypeFilter!=='Todos'&&jTaskType(t)!==jornadaTypeFilter)return false;
+    if(!jornadaFilterDate(t,day))return false;
     const text=normalize([t.title,t.type,jTaskType(t),t.note,t.date,jornadaDate(t.date)].join(' '));
     return words.every(word=>text.includes(word));
   });
   if(words.length && !matches.length)return '<div class="j-empty">Sin coincidencias.</div>';
   const open=matches.filter(x=>!x.done).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
   const completed=matches.filter(x=>x.done).sort((a,b)=>String(b.completedAt||b.createdAt||'').localeCompare(String(a.completedAt||a.createdAt||'')));
-  return `<div class="j-items">${open.length?jTaskGroups(open,day,false):words.length?'':'<div class="j-empty">No hay pendientes abiertos. Agrega uno en cuanto te lo pidan.</div>'}</div>
+  return `<div class="j-board">${open.length?jTaskGroups(open,day,false):words.length?'':'<div class="j-empty">No hay pendientes abiertos en esta vista.</div>'}</div>
   ${completed.length?'<details '+(words.length?'open ':'')+'class="j-completed"><summary>✓ Pendientes realizados · '+completed.length+'</summary><div class="j-items">'+jTaskGroups(completed,day,true)+'</div></details>':''}`;
 }
 function searchJornadaTasks(value){
@@ -132,8 +149,11 @@ function renderJornada(){
   const checked=j.routines.filter(x=>done[x.id]).length;
   root.innerHTML=`
     <div class="j-hero"><div><span class="j-kicker">SIMOUN · ORGANIZACIÓN DEL DÍA</span><h2>Jornada de trabajo</h2><p>Captura rápido lo que te pidan y organiza el trabajo del día.</p></div><div class="j-date"><label for="jDay">Hoy</label><strong>${new Date(day+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'})}</strong><small>${open.length} pendiente${open.length===1?'':'s'}</small></div></div>
-    <div class="j-layout">
-      <section class="card j-card j-quick"><div class="j-heading"><div><span class="j-icon">⚡</span><h3>Captura rápida</h3></div><span class="j-count">${open.length} abiertos</span></div>
+    <div class="j-view-tabs" role="group" aria-label="Vistas de Jornada">
+      ${[['pendientes','⚡','Pendientes',open.length+' abiertos'],['rutina','☑','Rutina diaria',checked+'/'+j.routines.length+' realizados'],['notas','📝','Notas del día',allNoteDates.length+' días guardados']].map(([key,icon,label,detail])=>`<button type="button" aria-pressed="${jornadaView===key}" class="${jornadaView===key?'selected':''}" onclick="jornadaSetView('${key}')"><span class="j-view-icon">${icon}</span><span><strong>${label}</strong><small>${detail}</small></span></button>`).join('')}
+    </div>
+    <div class="j-layout j-layout-focused">
+      <section class="card j-card j-quick" ${jornadaView==='pendientes'?'':'hidden'}><div class="j-heading"><div><span class="j-icon">⚡</span><h3>Captura rápida</h3></div><span class="j-count">${open.length} abiertos</span></div>
         <p class="muted">Anota una llamada, cotización, tarea de cliente o cualquier cosa que te pidan.</p>
         <form class="j-form" onsubmit="addJTask(event)">
           <label class="field"><span>¿Qué tienes que hacer?</span><input name="title" required placeholder="Ej. Llamar a Rocío para confirmar visita"></label>
@@ -141,14 +161,15 @@ function renderJornada(){
           <label class="field"><span>Cliente o nota (opcional)</span><input name="note" placeholder="Nombre, ventana de atención o detalle"></label>
           <button class="btn">+ Agregar pendiente</button>
         </form>
+        ${jornadaDashboard(j.tasks,day)}
         <label class="field"><span>Buscar pendientes</span><input type="search" class="search" placeholder="Título, cliente, nota, tipo o fecha" value="${jesc(jornadaTaskQuery)}" oninput="searchJornadaTasks(this.value)"></label>
         <div id="jTaskResults">${jornadaTaskResults(j.tasks,day)}</div>
       </section>
-      <section class="card j-card"><div class="j-heading"><div><span class="j-icon">☑️</span><h3>Rutina diaria</h3></div><span class="j-count">${checked}/${j.routines.length}</span></div><p class="muted">Se reinicia sola cada día; tus marcas anteriores quedan guardadas.</p>
+      <section class="card j-card" ${jornadaView==='rutina'?'':'hidden'}><div class="j-heading"><div><span class="j-icon">☑️</span><h3>Rutina diaria</h3></div><span class="j-count">${checked}/${j.routines.length}</span></div><p class="muted">Se reinicia sola cada día; tus marcas anteriores quedan guardadas.</p>
         <div class="j-routines">${jRoutineRows(j,done)}</div>
         <form class="j-add-routine" onsubmit="addJRoutine(event)"><input name="title" required placeholder="Agregar paso a la rutina"><button class="btn secondary">Añadir</button></form>
       </section>
-      <section class="card j-card j-daily-note"><div class="j-heading"><div><span class="j-icon">📝</span><h3>Notas del día</h3></div><span class="j-count">${allNoteDates.length} día${allNoteDates.length===1?'':'s'} guardado${allNoteDates.length===1?'':'s'}</span></div>
+      <section class="card j-card j-daily-note" ${jornadaView==='notas'?'':'hidden'}><div class="j-heading"><div><span class="j-icon">📝</span><h3>Notas del día</h3></div><span class="j-count">${allNoteDates.length} día${allNoteDates.length===1?'':'s'} guardado${allNoteDates.length===1?'':'s'}</span></div>
         <p class="muted">Anota situaciones, acuerdos o detalles que quieras recordar aunque no vayan en el sistema. Cada fecha conserva su propia nota; al abrir un día nuevo tendrás un espacio nuevo.</p>
         <div class="j-note-controls"><label class="field"><span>Fecha de la nota</span><input type="date" value="${noteDay}" onchange="jornadaSetNoteDate(this.value)"></label><button type="button" class="btn secondary" onclick="jornadaShowTodayNote()">Ir a hoy</button></div>
         <div class="j-note-date">${jornadaLongDate(noteDay)}</div>
@@ -158,7 +179,7 @@ function renderJornada(){
       </section>
     </div>`;
 }
-function addJTask(e){e.preventDefault();const f=new FormData(e.currentTarget);jornadaData().tasks.unshift({id:uid(),title:f.get('title').trim(),type:f.get('type'),date:f.get('date'),note:f.get('note').trim(),done:false,createdAt:new Date().toISOString()});save()}
+function addJTask(e){e.preventDefault();const f=new FormData(e.currentTarget);jornadaTypeFilter='Todos';jornadaDateFilter='todos';jornadaTaskQuery='';jornadaData().tasks.unshift({id:uid(),title:f.get('title').trim(),type:f.get('type'),date:f.get('date'),note:f.get('note').trim(),done:false,createdAt:new Date().toISOString()});save()}
 function toggleJTask(id){
   const x=jornadaData().tasks.find(t=>t.id===id);if(!x)return;
   x.done=!x.done;
@@ -235,5 +256,6 @@ jornadaStyle.textContent=`
 @media(max-width:720px){#jornada .j-layout{grid-template-columns:1fr}#jornada .j-report{grid-column:auto}#jornada .j-hero{display:grid;padding:16px}#jornada .j-date{text-align:left}#jornada .j-report-top{align-items:flex-start;display:grid}#jornada .j-event{flex-wrap:wrap}}
 `;
 jornadaStyle.textContent+="\n#jornada .j-task-group{border:1px solid var(--line);border-left:4px solid var(--j-task-color);border-radius:10px;padding:8px;margin:8px 0;background:#fff;min-width:0}\n#jornada .j-task-group h4{background:var(--j-task-color);color:white;padding:7px 10px;border-radius:6px;margin:0 0 8px;font-size:13px}\n#jornada .j-task-date{font-size:12px;font-weight:700;color:var(--j-task-color);margin:10px 0 4px;text-transform:capitalize}\n#jornada .j-task-group .j-items{margin-top:4px}\n";
+jornadaStyle.textContent+="\n#jornada .j-layout-focused{display:block}\n#jornada .j-layout-focused>[hidden]{display:none!important}\n#jornada .j-view-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:0 0 14px}\n#jornada .j-view-tabs button{display:flex;align-items:center;gap:9px;text-align:left;border:1px solid #d5e0ec;border-radius:12px;padding:12px;background:white;color:#12365b;cursor:pointer;min-width:0}\n#jornada .j-view-tabs button.selected{background:#12365b;border-color:#12365b;color:white}\n#jornada .j-view-tabs button strong,#jornada .j-view-tabs button small{display:block;overflow-wrap:anywhere}\n#jornada .j-view-tabs button small{font-size:11px;opacity:.8;margin-top:4px}\n#jornada .j-view-icon{font-size:22px;flex:none}\n#jornada .j-quick .j-form{grid-template-columns:2fr 2fr 1.4fr auto;align-items:end;background:#f3f7fb;padding:12px;border-radius:12px}\n#jornada .j-quick .j-form .row{grid-template-columns:repeat(2,minmax(0,1fr))}\n#jornada .j-quick .j-form .field{min-width:0}\n#jornada .j-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:14px 0}\n#jornada .j-metric{display:grid;gap:5px;text-align:left;border:1px solid #d5e0ec;border-radius:10px;background:#fff;padding:10px;color:#12365b;cursor:pointer}\n#jornada .j-metric strong{font-size:23px}#jornada .j-metric span{font-size:12px;font-weight:600}\n#jornada .j-metric.selected{background:#eaf2fb;border-color:#12365b;box-shadow:inset 0 0 0 1px #12365b}\n#jornada .j-type-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}\n#jornada .j-type-tabs button{border:1px solid var(--chip);color:var(--chip);background:white;border-radius:8px;font-weight:600;padding:7px 10px;cursor:pointer}\n#jornada .j-type-tabs button.selected{background:var(--chip);color:white}\n#jornada .j-board{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px;align-items:start}\n#jornada .j-board .j-task-group{margin:0}\n#jornada .j-item-text{overflow-wrap:anywhere}\n#jornada .j-item{flex-wrap:wrap}\n#jornada .j-item .split-actions{gap:4px}\n@media(max-width:1000px){#jornada .j-quick .j-form{grid-template-columns:repeat(2,minmax(0,1fr))}}\n@media(max-width:600px){#jornada .j-quick .j-form{grid-template-columns:1fr}#jornada .j-view-tabs{gap:4px}#jornada .j-view-tabs button{display:grid;gap:3px;padding:8px 5px;text-align:center}#jornada .j-view-tabs button strong{font-size:12px}#jornada .j-view-tabs button small{font-size:10px}#jornada .j-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}#jornada .j-metric{padding:8px}}\n";
 document.head.appendChild(jornadaStyle);
 renderJornada();
