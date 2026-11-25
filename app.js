@@ -104,10 +104,14 @@ function serviceAppointmentDate(i){
   const date=Object.prototype.hasOwnProperty.call(i,'serviceDate')?i.serviceDate:(i.confirmedAppointmentDate||i.followupDate||i.attentionDate||i.appointmentDate||'');
   return typeof date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
 }
+function appointmentOrder(i){const n=Number(i.appointmentOrder);return Number.isSafeInteger(n)&&n>0?n:Number.MAX_SAFE_INTEGER}
+function appointmentCompare(a,b){return appointmentOrder(a)-appointmentOrder(b)||String(a.appointmentAgreedTime||'').localeCompare(String(b.appointmentAgreedTime||''),'es',{numeric:true})}
+function calendarIsAppointment(e){return !e.bank&&!e.taskId&&!e.daily&&!e.noteId}
 function clientAppointmentKey(c,day=localAppointmentDay()){
-  const dates=(c.issues||[]).filter(i=>i.active!==false&&i.state!=='Cancelado'&&!(typeof isClosedService==='function'?isClosedService(i):i.state==='Terminado')).map(serviceAppointmentDate).filter(Boolean).sort();
-  const next=dates.find(d=>d>=day);
-  return next?{group:0,date:next}:dates.length?{group:1,date:dates[dates.length-1]}:{group:2,date:''};
+  const issues=(c.issues||[]).filter(i=>i.active!==false&&i.state!=='Cancelado'&&!(typeof isClosedService==='function'?isClosedService(i):i.state==='Terminado')&&serviceAppointmentDate(i));
+  const dates=issues.map(serviceAppointmentDate).sort(),next=dates.find(d=>d>=day),date=next||dates[dates.length-1]||'';
+  const first=issues.filter(i=>serviceAppointmentDate(i)===date).sort(appointmentCompare)[0];
+  return {group:next?0:date?1:2,date,order:first?appointmentOrder(first):Number.MAX_SAFE_INTEGER};
 }
 
 function orderedClients(category){
@@ -117,7 +121,7 @@ function orderedClients(category){
   const keys=new Map(clients.map(c=>[c.id,clientAppointmentKey(c,day)]));
   return clients.sort((a,b)=>{
     const x=keys.get(a.id),y=keys.get(b.id);
-    return x.group-y.group || (x.group===1?y.date.localeCompare(x.date):x.date.localeCompare(y.date)) || String(a.name||'').localeCompare(String(b.name||''),'es',{sensitivity:'base'});
+    return x.group-y.group || (x.group===1?y.date.localeCompare(x.date):x.date.localeCompare(y.date)) || x.order-y.order || String(a.name||'').localeCompare(String(b.name||''),'es',{sensitivity:'base'});
   });
 }
 
@@ -239,7 +243,7 @@ function deleteIssue(cid,iid,fromGroup=false){const c=state.clients.find(x=>x.id
 function calendarBaseEvents(){return allIssues().filter(i=>i.active!==false).flatMap(i=>issueDates(i).map(d=>({date:d.date,label:d.label+' · '+i.type,client:i.client,issue:i}))).concat((typeof bankAgenda==='undefined'?[]:bankAgenda).map(x=>({date:x.date,label:x.label,client:{id:x.id,name:x.name},issue:{type:x.label},bank:true}))).sort((a,b)=>a.date.localeCompare(b.date))}
 function renderCalendar(){
   const y=calCursor.getFullYear(),m=calCursor.getMonth();const first=new Date(y,m,1);let start=new Date(first);start.setDate(first.getDate()-((first.getDay()+6)%7));const ev=events();let cells='';
-  for(let n=0;n<42;n++){const d=new Date(start);d.setDate(start.getDate()+n);const iso=d.toISOString().slice(0,10);const des=ev.filter(e=>e.date===iso);cells+=`<div class="day ${d.getMonth()!==m?'other':''} ${iso===today()?'today':''}" onclick="openDay('${iso}')"><div class="day-num">${d.getDate()}</div>${des.slice(0,3).map(e=>`<span class="event-dot ${e.taskId?(e.taskDone?'cal-task cal-done':'cal-task'):(e.daily||e.noteId?'cal-note':'cal-appointment')}">${esc(e.daily?'Nota del día':e.noteId?'Nota':e.taskId?(e.taskDone?'✓ ':'○ ')+e.client.name:e.client.name+' · '+e.issue.type)}</span>`).join('')}${des.length>3?`<span class="event-dot calendar-more">+${des.length-3}</span>`:''}</div>`}
+  for(let n=0;n<42;n++){const d=new Date(start);d.setDate(start.getDate()+n);const iso=d.toISOString().slice(0,10);const des=ev.filter(e=>e.date===iso);cells+=`<div class="day ${d.getMonth()!==m?'other':''} ${iso===today()?'today':''}" onclick="openDay('${iso}')"><div class="day-num">${d.getDate()}</div>${des.slice(0,3).map(e=>`<span class="event-dot ${e.taskId?(e.taskDone?'cal-task cal-done':'cal-task'):(e.daily||e.noteId?'cal-note':'cal-appointment')}">${esc(e.daily?'Nota del día':e.noteId?'Nota':e.taskId?(e.taskDone?'✓ ':'○ ')+e.client.name:(calendarIsAppointment(e)&&appointmentOrder(e.issue)!==Number.MAX_SAFE_INTEGER?appointmentOrder(e.issue)+'. ':'')+e.client.name+' · '+e.issue.type+(e.issue.appointmentAgreedTime?' · '+e.issue.appointmentAgreedTime:''))}</span>`).join('')}${des.length>3?`<span class="event-dot calendar-more">+${des.length-3}</span>`:''}</div>`}
   document.getElementById('calendario').innerHTML=`<div class="calendar-head"><button class="btn secondary" onclick="moveMonth(-1)">‹</button><h2>${calCursor.toLocaleDateString('es-MX',{month:'long',year:'numeric'})}</h2><button class="btn secondary" onclick="moveMonth(1)">›</button></div><div class="calendar">${['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(x=>`<div class="dow">${x}</div>`).join('')}${cells}</div>`;
 }
 function moveMonth(x){calCursor.setMonth(calCursor.getMonth()+x);renderCalendar()}
@@ -257,12 +261,21 @@ function events(){
   for(const n of state.calendarNotes||[])entries.push({date:n.date,key:'note:'+n.id,label:n.text,client:{name:'Nota'},issue:{type:'Nota'},noteId:n.id});
   const ranks=new Map();
   for(const [date,keys] of Object.entries(state.calendarOrder||{}))if(Array.isArray(keys))ranks.set(date,new Map(keys.map((key,i)=>[key,i])));
-  return entries.sort((a,b)=>a.date.localeCompare(b.date)||((ranks.get(a.date)?.get(calendarKey(a))??Infinity)-(ranks.get(b.date)?.get(calendarKey(b))??Infinity)));
+  const grouped=new Map();
+  entries.forEach(e=>{if(!grouped.has(e.date))grouped.set(e.date,[]);grouped.get(e.date).push(e)});
+  return [...grouped.keys()].sort().flatMap(date=>{
+    const rank=ranks.get(date),items=grouped.get(date);
+    items.sort((a,b)=>(rank?.get(calendarKey(a))??Number.MAX_SAFE_INTEGER)-(rank?.get(calendarKey(b))??Number.MAX_SAFE_INTEGER));
+    const appointments=items.filter(calendarIsAppointment).sort((a,b)=>appointmentOrder(a.issue)-appointmentOrder(b.issue));
+    let n=0;return items.map(e=>calendarIsAppointment(e)?appointments[n++]:e);
+  });
 }
 function calendarMove(date,index,step){
   const items=events().filter(e=>e.date===date),target=index+step;
   if(index<0||target<0||target>=items.length)return;
+  const both=calendarIsAppointment(items[index])&&calendarIsAppointment(items[target]);
   [items[index],items[target]]=[items[target],items[index]];
+  if(both)items.filter(calendarIsAppointment).forEach((e,n)=>{const i=state.clients.find(c=>c.id===e.client.id)?.issues?.find(i=>i.id===e.issue.id);if(i)i.appointmentOrder=n+1});
   (state.calendarOrder ||= {})[date]=items.map(calendarKey);
   save();openDay(date);
 }
@@ -302,7 +315,7 @@ function openDay(iso){
   body.innerHTML='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><button class="btn sm" onclick="calendarAddNote(\''+iso+'\')">+ Nota</button><span class="muted">Usa ↑ y ↓ para ordenar el día.</span></div>'+ (es.map((e,i)=>{
     const note=e.daily||e.noteId;
     const buttons=e.taskId?'<button class="btn sm secondary" onclick="calendarToggleTask(\''+iso+'\','+i+')">'+(e.taskDone?'Reabrir':'✓ Marcar realizado')+'</button><button class="btn sm" onclick="calendarEditTask(\''+iso+'\','+i+')">Editar pendiente</button>':note?'<button class="btn sm secondary" onclick="calendarEditNote(\''+iso+'\','+i+')">Editar nota</button>'+(e.noteId?'<button class="btn sm danger" onclick="calendarDeleteNote(\''+iso+'\','+i+')">Borrar</button>':''):'<button class="btn sm" onclick="dayDlg.close();'+(e.bank?'openBankCase':'openClient')+'(\''+esc(e.client.id)+'\')">'+(e.bank?'Dar seguimiento':'Abrir expediente')+'</button>';
-    return '<div class="card '+(e.taskId?(e.taskDone?'cal-task cal-done':'cal-task'):note?'cal-note':'cal-appointment')+'" style="'+typeStyle(e.issue.type)+';border-left:5px solid var(--type)"><strong style="'+(e.taskDone?'text-decoration:line-through;color:#64748b':'')+'">'+(e.taskDone?'✓ ':'')+esc(e.client.name)+(note?'':' · '+esc(e.issue.type))+'</strong><div class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(e.label)+(e.issue.appointmentWindow?' · '+esc(e.issue.appointmentWindow):'')+'</div>'+(!note&&!e.bank&&!e.taskId?'<div style="margin-top:8px;padding:8px 10px;background:#f3f6fa;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere"><strong style="display:block;font-size:12px;margin-bottom:3px">Notas internas del cliente</strong>'+esc(state.clients.find(c=>c.id===e.client.id)?.internalNotes||'Sin notas internas guardadas')+'</div>':'')+'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm secondary" aria-label="Mover arriba" '+(i===0?'disabled':'')+' onclick="calendarMove(\''+iso+'\','+i+',-1)">↑</button><button type="button" class="btn sm secondary" aria-label="Mover abajo" '+(i===es.length-1?'disabled':'')+' onclick="calendarMove(\''+iso+'\','+i+',1)">↓</button>'+buttons+'</div></div>';
+    return '<div class="card '+(e.taskId?(e.taskDone?'cal-task cal-done':'cal-task'):note?'cal-note':'cal-appointment')+'" style="'+typeStyle(e.issue.type)+';border-left:5px solid var(--type)"><strong style="'+(e.taskDone?'text-decoration:line-through;color:#64748b':'')+'">'+(e.taskDone?'✓ ':'')+(calendarIsAppointment(e)&&appointmentOrder(e.issue)!==Number.MAX_SAFE_INTEGER?appointmentOrder(e.issue)+'. ':'')+esc(e.client.name)+(note?'':' · '+esc(e.issue.type))+'</strong><div class="muted" style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(e.label)+(e.issue.appointmentAgreedTime?' · Hora acordada: '+esc(e.issue.appointmentAgreedTime):e.issue.appointmentWindow?' · '+esc(e.issue.appointmentWindow):'')+'</div>'+(!note&&!e.bank&&!e.taskId?'<div style="margin-top:8px;padding:8px 10px;background:#f3f6fa;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere"><strong style="display:block;font-size:12px;margin-bottom:3px">Notas internas del cliente</strong>'+esc(state.clients.find(c=>c.id===e.client.id)?.internalNotes||'Sin notas internas guardadas')+'</div>':'')+'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm secondary" aria-label="Mover arriba" '+(i===0?'disabled':'')+' onclick="calendarMove(\''+iso+'\','+i+',-1)">↑</button><button type="button" class="btn sm secondary" aria-label="Mover abajo" '+(i===es.length-1?'disabled':'')+' onclick="calendarMove(\''+iso+'\','+i+',1)">↓</button>'+buttons+'</div></div>';
   }).join('')||'<div class="empty">No hay eventos este día.</div>');
   if(!dayDlg.open)dayDlg.showModal();
 }
