@@ -85,8 +85,8 @@ function jTaskCard(t,day,isDone){
   const completedDate=t.completedAt?new Date(t.completedAt).toLocaleDateString('es-MX',{day:'numeric',month:'short'}):'Realizado';
   return '<article class="j-item '+(!isDone&&t.date&&t.date<day?'j-late':'')+'">'+
     '<button class="j-check '+(isDone?'is-completed':'')+'" title="'+(isDone?'Reabrir pendiente':'Marcar realizado')+'" onclick="toggleJTask(\''+t.id+'\')">'+(isDone?'✓':'○')+'</button>'+
-    '<div class="j-item-text"><strong>'+jesc(t.title)+'</strong><small>'+jesc(jTaskType(t))+(t.note?' · '+jesc(t.note):'')+'</small></div>'+
-    '<span class="j-due">'+(isDone?'✓ '+completedDate:(t.date?jornadaDate(t.date):''))+'</span>'+
+    '<div class="j-item-text"><strong>'+jesc(t.title)+'</strong>'+(t.note?'<small>'+jesc(t.note)+'</small>':'')+'</div><span class="j-type-pill" style="background:'+J_TASK_COLORS[jTaskType(t)]+'">'+jesc(jTaskType(t))+'</span>'+
+    '<span class="j-due">'+(isDone?'✓ '+completedDate:(t.date?(t.date===day?'Hoy · ':t.date<day?'Vencido · ':'')+jornadaDate(t.date):'Sin fecha'))+'</span>'+
     '<div class="split-actions"><button class="btn sm secondary" type="button" onclick="editJTask(\''+t.id+'\')">Editar</button><button class="j-x" type="button" aria-label="Borrar pendiente" onclick="deleteJTask(\''+t.id+'\')">×</button></div></article>';
 }
 function jRoutineRows(j,done){
@@ -99,7 +99,7 @@ function jRoutineRows(j,done){
       '<button type="button" class="j-routine-delete" title="Borrar paso" aria-label="Borrar '+jesc(r.title)+'" onclick="deleteJRoutine(event,\''+r.id+'\')">×</button></div></div>';
   }).join('');
 }
-let jornadaTaskQuery='',jornadaView='pendientes',jornadaTypeFilter='Todos',jornadaDateFilter='todos';
+let jornadaTaskQuery='',jornadaView='pendientes',jornadaTypeFilter='Todos',jornadaDateFilter='todos',jornadaSort='manual';
 function jornadaSetView(view){
  if(!['pendientes','rutina','notas'].includes(view))return;
  jornadaView=view;renderJornada();
@@ -115,6 +115,24 @@ function jornadaDashboard(tasks,day){
  const metrics=[['todos','Abiertos',open.length],['hoy','Hoy',open.filter(t=>t.date===day).length],['vencidos','Vencidos',open.filter(t=>t.date&&t.date<day).length],['proximos','Próximos',open.filter(t=>t.date&&t.date>day).length],['sinfecha','Sin fecha',open.filter(t=>!t.date).length]];
  return '<div class="j-metrics">'+metrics.map(([key,label,count])=>'<button type="button" class="j-metric '+(jornadaDateFilter===key?'selected':'')+'" onclick="jornadaFilter(jornadaTypeFilter,\''+key+'\')"><span>'+label+'</span><strong>'+count+'</strong></button>').join('')+'</div><div class="j-type-tabs">'+['Todos',...J_TASK_TYPES].map((type,i)=>'<button type="button" style="--chip:'+(J_TASK_COLORS[type]||'#12365b')+'" class="'+(jornadaTypeFilter===type?'selected':'')+'" onclick="jornadaFilter('+ (i===0?"\'Todos\'":"J_TASK_TYPES["+(i-1)+"]") +',jornadaDateFilter)">'+jesc(type)+' · '+open.filter(t=>(type==='Todos'||jTaskType(t)===type)&&jornadaFilterDate(t,day)).length+'</button>').join('')+'</div>';
 }
+function jornadaSortMode(mode){if(!['manual','fecha','tipo'].includes(mode))return;jornadaSort=mode;renderJornada()}
+function jornadaManualTasks(tasks){
+ const order=Array.isArray(jornadaData().taskOrder)?jornadaData().taskOrder:[],rank=new Map(order.map((id,i)=>[id,i]));
+ return tasks.slice().sort((a,b)=>(rank.get(a.id)??Number.MAX_SAFE_INTEGER)-(rank.get(b.id)??Number.MAX_SAFE_INTEGER));
+}
+function jornadaMoveTask(id,step){
+ const all=jornadaManualTasks(jornadaData().tasks.filter(t=>!t.done));
+ const day=jornadaToday(),norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),words=norm(jornadaTaskQuery).trim().split(/\s+/).filter(Boolean);
+ const visible=all.filter(t=>(jornadaTypeFilter==='Todos'||jTaskType(t)===jornadaTypeFilter)&&jornadaFilterDate(t,day)&&words.every(w=>norm([t.title,t.type,jTaskType(t),t.note,t.date,jornadaDate(t.date)].join(' ')).includes(w)));
+ const index=visible.findIndex(t=>t.id===id),target=visible[index+step];
+ if(index<0||!target)return;
+ const a=all.findIndex(t=>t.id===id),b=all.findIndex(t=>t.id===target.id);
+ [all[a],all[b]]=[all[b],all[a]];
+ jornadaData().taskOrder=all.map(t=>t.id);jornadaSort='manual';save();
+}
+function jornadaFlatRows(tasks,day,done){
+ return tasks.map((t,index)=>'<div class="j-flat-row" style="--j-task-color:'+J_TASK_COLORS[jTaskType(t)]+'">'+(!done&&jornadaSort==='manual'?'<div class="j-order"><strong>'+(index+1)+'</strong><button type="button" aria-label="Subir pendiente" '+(index===0?'disabled':'')+' onclick="jornadaMoveTask(\''+t.id+'\',-1)">↑</button><button type="button" aria-label="Bajar pendiente" '+(index===tasks.length-1?'disabled':'')+' onclick="jornadaMoveTask(\''+t.id+'\',1)">↓</button></div>':'')+jTaskCard(t,day,done)+'</div>').join('');
+}
 function jornadaTaskResults(tasks,day){
   const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const words=normalize(jornadaTaskQuery).trim().split(/\s+/).filter(Boolean);
@@ -125,10 +143,10 @@ function jornadaTaskResults(tasks,day){
     return words.every(word=>text.includes(word));
   });
   if(words.length && !matches.length)return '<div class="j-empty">Sin coincidencias.</div>';
-  const open=matches.filter(x=>!x.done).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
+  const open=jornadaSort==='manual'?jornadaManualTasks(matches.filter(x=>!x.done)):matches.filter(x=>!x.done).sort((a,b)=>jornadaSort==='tipo'?(J_TASK_TYPES.indexOf(jTaskType(a))-J_TASK_TYPES.indexOf(jTaskType(b))||(a.date||'9999').localeCompare(b.date||'9999')):(a.date||'9999').localeCompare(b.date||'9999'));
   const completed=matches.filter(x=>x.done).sort((a,b)=>String(b.completedAt||b.createdAt||'').localeCompare(String(a.completedAt||a.createdAt||'')));
-  return `<div class="j-board">${open.length?jTaskGroups(open,day,false):words.length?'':'<div class="j-empty">No hay pendientes abiertos en esta vista.</div>'}</div>
-  ${completed.length?'<details '+(words.length?'open ':'')+'class="j-completed"><summary>✓ Pendientes realizados · '+completed.length+'</summary><div class="j-items">'+jTaskGroups(completed,day,true)+'</div></details>':''}`;
+  return `<div class="j-board">${open.length?jornadaFlatRows(open,day,false):words.length?'':'<div class="j-empty">No hay pendientes abiertos en esta vista.</div>'}</div>
+  ${completed.length?'<details '+(words.length?'open ':'')+'class="j-completed"><summary>✓ Pendientes realizados · '+completed.length+'</summary><div class="j-items">'+jornadaFlatRows(completed,day,true)+'</div></details>':''}`;
 }
 function searchJornadaTasks(value){
   jornadaTaskQuery=value;
@@ -162,6 +180,7 @@ function renderJornada(){
           <button class="btn">+ Agregar pendiente</button>
         </form>
         ${jornadaDashboard(j.tasks,day)}
+        <div class="j-sort-bar"><strong>Ordenar pendientes</strong><div class="j-sort-buttons">${[['manual','Mi orden'],['fecha','Por fecha'],['tipo','Por tipo']].map(([key,label])=>`<button type="button" class="btn sm ${jornadaSort===key?'':'secondary'}" onclick="jornadaSortMode('${key}')">${label}</button>`).join('')}</div><small class="muted">${jornadaSort==='manual'?'Usa ↑ y ↓ para definir tu prioridad.':'Puedes regresar a Mi orden sin perder tus prioridades.'}</small></div>
         <label class="field"><span>Buscar pendientes</span><input type="search" class="search" placeholder="Título, cliente, nota, tipo o fecha" value="${jesc(jornadaTaskQuery)}" oninput="searchJornadaTasks(this.value)"></label>
         <div id="jTaskResults">${jornadaTaskResults(j.tasks,day)}</div>
       </section>
@@ -257,5 +276,6 @@ jornadaStyle.textContent=`
 `;
 jornadaStyle.textContent+="\n#jornada .j-task-group{border:1px solid var(--line);border-left:4px solid var(--j-task-color);border-radius:10px;padding:8px;margin:8px 0;background:#fff;min-width:0}\n#jornada .j-task-group h4{background:var(--j-task-color);color:white;padding:7px 10px;border-radius:6px;margin:0 0 8px;font-size:13px}\n#jornada .j-task-date{font-size:12px;font-weight:700;color:var(--j-task-color);margin:10px 0 4px;text-transform:capitalize}\n#jornada .j-task-group .j-items{margin-top:4px}\n";
 jornadaStyle.textContent+="\n#jornada .j-layout-focused{display:block}\n#jornada .j-layout-focused>[hidden]{display:none!important}\n#jornada .j-view-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:0 0 14px}\n#jornada .j-view-tabs button{display:flex;align-items:center;gap:9px;text-align:left;border:1px solid #d5e0ec;border-radius:12px;padding:12px;background:white;color:#12365b;cursor:pointer;min-width:0}\n#jornada .j-view-tabs button.selected{background:#12365b;border-color:#12365b;color:white}\n#jornada .j-view-tabs button strong,#jornada .j-view-tabs button small{display:block;overflow-wrap:anywhere}\n#jornada .j-view-tabs button small{font-size:11px;opacity:.8;margin-top:4px}\n#jornada .j-view-icon{font-size:22px;flex:none}\n#jornada .j-quick .j-form{grid-template-columns:2fr 2fr 1.4fr auto;align-items:end;background:#f3f7fb;padding:12px;border-radius:12px}\n#jornada .j-quick .j-form .row{grid-template-columns:repeat(2,minmax(0,1fr))}\n#jornada .j-quick .j-form .field{min-width:0}\n#jornada .j-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:14px 0}\n#jornada .j-metric{display:grid;gap:5px;text-align:left;border:1px solid #d5e0ec;border-radius:10px;background:#fff;padding:10px;color:#12365b;cursor:pointer}\n#jornada .j-metric strong{font-size:23px}#jornada .j-metric span{font-size:12px;font-weight:600}\n#jornada .j-metric.selected{background:#eaf2fb;border-color:#12365b;box-shadow:inset 0 0 0 1px #12365b}\n#jornada .j-type-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}\n#jornada .j-type-tabs button{border:1px solid var(--chip);color:var(--chip);background:white;border-radius:8px;font-weight:600;padding:7px 10px;cursor:pointer}\n#jornada .j-type-tabs button.selected{background:var(--chip);color:white}\n#jornada .j-board{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px;align-items:start}\n#jornada .j-board .j-task-group{margin:0}\n#jornada .j-item-text{overflow-wrap:anywhere}\n#jornada .j-item{flex-wrap:wrap}\n#jornada .j-item .split-actions{gap:4px}\n@media(max-width:1000px){#jornada .j-quick .j-form{grid-template-columns:repeat(2,minmax(0,1fr))}}\n@media(max-width:600px){#jornada .j-quick .j-form{grid-template-columns:1fr}#jornada .j-view-tabs{gap:4px}#jornada .j-view-tabs button{display:grid;gap:3px;padding:8px 5px;text-align:center}#jornada .j-view-tabs button strong{font-size:12px}#jornada .j-view-tabs button small{font-size:10px}#jornada .j-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}#jornada .j-metric{padding:8px}}\n";
+jornadaStyle.textContent+="#jornada .j-board{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}\n#jornada .j-flat-row{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-left:4px solid var(--j-task-color);border-radius:10px;padding:5px 8px;background:#fff;min-width:0}\n#jornada .j-flat-row .j-item{flex:1;border:0;background:transparent;padding:5px;min-width:0;flex-wrap:nowrap}\n#jornada .j-flat-row:has(.j-late){background:#fff8f6}\n#jornada .j-type-pill{flex:none;color:white;border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700}\n#jornada .j-flat-row .j-due{min-width:95px;text-align:right}\n#jornada .j-order{display:flex;align-items:center;gap:3px;flex:none;color:var(--brand)}\n#jornada .j-order strong{font-size:12px;min-width:18px;text-align:center}\n#jornada .j-order button{border:1px solid var(--line);background:#edf3f9;color:var(--brand);border-radius:6px;width:28px;height:30px;cursor:pointer}\n#jornada .j-order button:disabled{opacity:.35;cursor:default}\n#jornada .j-sort-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}\n#jornada .j-sort-buttons{display:flex;gap:4px;flex-wrap:wrap}\n@media(max-width:720px){#jornada .j-flat-row .j-item{flex-wrap:wrap}#jornada .j-flat-row .j-item-text{flex-basis:calc(100% - 50px)}#jornada .j-order{flex-direction:column}#jornada .j-flat-row .j-due{min-width:0;text-align:left}#jornada .j-type-pill{font-size:10px}}";
 document.head.appendChild(jornadaStyle);
 renderJornada();
