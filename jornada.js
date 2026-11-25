@@ -69,11 +69,23 @@ function jornadaSetNoteDate(date){
   save();
 }
 function jornadaShowTodayNote(){saveJDailyNote(false);jornadaNoteViewDate=jornadaToday();save();}
+
+const J_TASK_TYPES=['Del Inge','Clientes','Administrativo','Garantías','General'];
+const J_TASK_COLORS={'Del Inge':'#1d4ed8','Clientes':'#087f75','Administrativo':'#7543a8','Garantías':'#b45309','General':'#475569'};
+function jTaskType(t){const v=String(t.type||'');return J_TASK_TYPES.includes(v)?v:({Cliente:'Clientes',Llamada:'Clientes',Cotización:'Clientes',Seguimiento:'Clientes',Trabajo:'General',Otro:'General'}[v]||'General')}
+function jTaskGroups(tasks,day,done){
+ return J_TASK_TYPES.map(type=>{
+  const group=tasks.filter(t=>jTaskType(t)===type);if(!group.length)return '';
+  const dates=[...new Set(group.map(t=>t.date||''))].sort((a,b)=>(a||'9999').localeCompare(b||'9999'));
+  return '<section class="j-task-group" style="--j-task-color:'+J_TASK_COLORS[type]+'"><h4>'+jesc(type)+' · '+group.length+'</h4>'+dates.map(date=>'<div class="j-task-date">'+(date===day?'Hoy · ':date&&date<day&&!done?'Vencido · ':'')+jesc(date?jornadaLongDate(date):'Sin fecha')+'</div><div class="j-items">'+group.filter(t=>(t.date||'')===date).map(t=>jTaskCard(t,day,done)).join('')+'</div>').join('')+'</section>';
+ }).join('');
+}
+
 function jTaskCard(t,day,isDone){
   const completedDate=t.completedAt?new Date(t.completedAt).toLocaleDateString('es-MX',{day:'numeric',month:'short'}):'Realizado';
   return '<article class="j-item '+(!isDone&&t.date&&t.date<day?'j-late':'')+'">'+
     '<button class="j-check '+(isDone?'is-completed':'')+'" title="'+(isDone?'Reabrir pendiente':'Marcar realizado')+'" onclick="toggleJTask(\''+t.id+'\')">'+(isDone?'✓':'○')+'</button>'+
-    '<div class="j-item-text"><strong>'+jesc(t.title)+'</strong><small>'+jesc(t.type||'Pendiente')+(t.note?' · '+jesc(t.note):'')+'</small></div>'+
+    '<div class="j-item-text"><strong>'+jesc(t.title)+'</strong><small>'+jesc(jTaskType(t))+(t.note?' · '+jesc(t.note):'')+'</small></div>'+
     '<span class="j-due">'+(isDone?'✓ '+completedDate:(t.date?jornadaDate(t.date):''))+'</span>'+
     '<div class="split-actions"><button class="btn sm secondary" type="button" onclick="editJTask(\''+t.id+'\')">Editar</button><button class="j-x" type="button" aria-label="Borrar pendiente" onclick="deleteJTask(\''+t.id+'\')">×</button></div></article>';
 }
@@ -92,14 +104,14 @@ function jornadaTaskResults(tasks,day){
   const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const words=normalize(jornadaTaskQuery).trim().split(/\s+/).filter(Boolean);
   const matches=tasks.filter(t=>{
-    const text=normalize([t.title,t.type,t.note,t.date,jornadaDate(t.date)].join(' '));
+    const text=normalize([t.title,t.type,jTaskType(t),t.note,t.date,jornadaDate(t.date)].join(' '));
     return words.every(word=>text.includes(word));
   });
   if(words.length && !matches.length)return '<div class="j-empty">Sin coincidencias.</div>';
   const open=matches.filter(x=>!x.done).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
   const completed=matches.filter(x=>x.done).sort((a,b)=>String(b.completedAt||b.createdAt||'').localeCompare(String(a.completedAt||a.createdAt||'')));
-  return `<div class="j-items">${open.length?open.map(t=>jTaskCard(t,day,false)).join(''):words.length?'':'<div class="j-empty">No hay pendientes abiertos. Agrega uno en cuanto te lo pidan.</div>'}</div>
-  ${completed.length?'<details '+(words.length?'open ':'')+'class="j-completed"><summary>✓ Pendientes realizados · '+completed.length+'</summary><div class="j-items">'+completed.map(t=>jTaskCard(t,day,true)).join('')+'</div></details>':''}`;
+  return `<div class="j-items">${open.length?jTaskGroups(open,day,false):words.length?'':'<div class="j-empty">No hay pendientes abiertos. Agrega uno en cuanto te lo pidan.</div>'}</div>
+  ${completed.length?'<details '+(words.length?'open ':'')+'class="j-completed"><summary>✓ Pendientes realizados · '+completed.length+'</summary><div class="j-items">'+jTaskGroups(completed,day,true)+'</div></details>':''}`;
 }
 function searchJornadaTasks(value){
   jornadaTaskQuery=value;
@@ -125,7 +137,7 @@ function renderJornada(){
         <p class="muted">Anota una llamada, cotización, tarea de cliente o cualquier cosa que te pidan.</p>
         <form class="j-form" onsubmit="addJTask(event)">
           <label class="field"><span>¿Qué tienes que hacer?</span><input name="title" required placeholder="Ej. Llamar a Rocío para confirmar visita"></label>
-          <div class="row"><label class="field"><span>Tipo</span><select name="type"><option>Cliente</option><option>Llamada</option><option>Cotización</option><option>Seguimiento</option><option>Trabajo</option><option>Otro</option></select></label><label class="field"><span>Fecha (opcional)</span><input name="date" type="date"></label></div>
+          <div class="row"><label class="field"><span>Tipo</span><select name="type"><option>Del Inge</option><option>Clientes</option><option>Administrativo</option><option>Garantías</option><option>General</option></select></label><label class="field"><span>Fecha (opcional)</span><input name="date" type="date"></label></div>
           <label class="field"><span>Cliente o nota (opcional)</span><input name="note" placeholder="Nombre, ventana de atención o detalle"></label>
           <button class="btn">+ Agregar pendiente</button>
         </form>
@@ -160,14 +172,14 @@ function editJTask(id){
   const body=dlg.querySelector('.modal-body');
   body.innerHTML='<form id="jTaskEditForm" style="display:grid;gap:12px">'+
     '<label class="field"><span>¿Qué tienes que hacer?</span><input name="title" required value="'+jesc(task.title)+'"></label>'+
-    '<div class="row"><label class="field"><span>Tipo</span><select name="type">'+['Cliente','Llamada','Cotización','Seguimiento','Trabajo','Otro'].map(x=>'<option '+(x===(task.type||'Otro')?'selected':'')+'>'+x+'</option>').join('')+'</select></label>'+
+    '<div class="row"><label class="field"><span>Tipo</span><select name="type">'+J_TASK_TYPES.map(x=>'<option '+(x===jTaskType(task)?'selected':'')+'>'+x+'</option>').join('')+'</select></label>'+
     '<label class="field"><span>Fecha</span><input name="date" type="date" value="'+jesc(task.date||'')+'"></label></div>'+
     '<label class="field"><span>Cliente o nota</span><input name="note" value="'+jesc(task.note||'')+'"></label>'+
     '<div class="toolbar"><button class="btn" type="submit">Guardar cambios</button><button class="btn secondary" type="button" data-cancel>Cerrar</button></div></form>';
   body.querySelector('[data-cancel]').addEventListener('click',()=>dlg.close());
   body.querySelector('form').addEventListener('submit',e=>{
     e.preventDefault();const fd=new FormData(e.currentTarget);
-    task.title=String(fd.get('title')||'').trim();task.type=String(fd.get('type')||'Otro');
+    task.title=String(fd.get('title')||'').trim();task.type=String(fd.get('type')||'General');
     task.date=String(fd.get('date')||'');task.note=String(fd.get('note')||'').trim();
     save();dlg.close();
   });
@@ -222,5 +234,6 @@ jornadaStyle.textContent=`
 #jornada .j-daily-note{grid-column:1/-1}#jornada .j-note-controls{display:flex;align-items:end;gap:9px;flex-wrap:wrap;margin:10px 0}#jornada .j-note-controls .field{min-width:190px;flex:1}#jornada .j-note-date{text-transform:capitalize;font-weight:800;color:#164a78;margin:8px 0}#jornada #jDailyNote{width:100%;min-height:190px;padding:12px;border:1px solid var(--line);border-radius:12px;resize:vertical;background:#fff;color:var(--ink)}#jornada .j-note-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:9px}#jornada .j-note-archive{border-top:1px solid var(--line);margin-top:14px;padding-top:12px;display:grid;gap:8px}#jornada .j-note-days{display:flex;gap:7px;flex-wrap:wrap}#jornada .j-note-days .btn{white-space:normal;text-align:left}
 @media(max-width:720px){#jornada .j-layout{grid-template-columns:1fr}#jornada .j-report{grid-column:auto}#jornada .j-hero{display:grid;padding:16px}#jornada .j-date{text-align:left}#jornada .j-report-top{align-items:flex-start;display:grid}#jornada .j-event{flex-wrap:wrap}}
 `;
+jornadaStyle.textContent+="\n#jornada .j-task-group{border:1px solid var(--line);border-left:4px solid var(--j-task-color);border-radius:10px;padding:8px;margin:8px 0;background:#fff;min-width:0}\n#jornada .j-task-group h4{background:var(--j-task-color);color:white;padding:7px 10px;border-radius:6px;margin:0 0 8px;font-size:13px}\n#jornada .j-task-date{font-size:12px;font-weight:700;color:var(--j-task-color);margin:10px 0 4px;text-transform:capitalize}\n#jornada .j-task-group .j-items{margin-top:4px}\n";
 document.head.appendChild(jornadaStyle);
 renderJornada();
