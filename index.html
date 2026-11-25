@@ -55,6 +55,12 @@ html.simoun-screen-locked body{overflow:hidden}
 #calendario .calendar-more{height:17px;line-height:11px;-webkit-line-clamp:1}
 @media(max-width:720px){#calendario .calendar{gap:3px;grid-auto-rows:147px}#calendario .day{padding:3px}#calendario .event-dot{font-size:9px;line-height:12px;padding:3px 2px;height:30px}#calendario .calendar-more{height:16px}}
 
+
+/* Día actual: acento solar */
+#calendario .day.today{background:linear-gradient(145deg,#fff8dc,#ffedab);border:1px solid #eab54b;outline:2px solid #f4c44e;outline-offset:-1px;box-shadow:0 0 0 2px #fff3c4}
+#calendario .day.today .day-num{color:#805000;display:flex;align-items:center;gap:5px}
+#calendario .day.today .day-num::after{content:'☀';color:#d58a00;font-size:15px;line-height:1}
+#calendario .day.today .event-dot{background:#fffdf4;color:#59451b}
 </style>
 </head>
 <body>
