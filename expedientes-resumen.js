@@ -57,12 +57,7 @@ function exrService(c,i){
  const docs=Array.isArray(i.serviceDocs)?i.serviceDocs:[];
  return `<article class="exr-service" style="${typeStyle(i.type)}">
   <div class="exr-service-head"><div class="exr-service-title"><span class="type-label">${meta.icon} ${esc(i.type||'Servicio')}</span>${statuses.length?statuses.map(s=>`<span class="badge ${s==='Trabajo terminado'?'green':'orange'}">${esc(s)}</span>`).join(''):'<span class="badge">Sin estatus de trabajo</span>'}${tags.map(t=>`<span class="badge blue">${esc(t)}</span>`).join('')}${i.active===false?'<span class="badge red">Servicio inactivo</span>':''}</div><button class="btn sm secondary" onclick="editIssue('${c.id}','${i.id}')">Editar servicio</button></div>
-  <div class="exr-details">
-   <div class="exr-field"><small>Fecha de contacto del cliente *</small><strong>${(i.clientContactDate||i.createdDate)?fmt(i.clientContactDate||i.createdDate):'Sin fecha'}</strong></div>
-   <div class="exr-field"><small>Fecha de seguimiento o atención *</small><strong>${esc(followText)}</strong></div>
-   <div class="exr-field"><small>Fecha de cita confirmada *</small><strong>${i.confirmedAppointmentDate?fmt(i.confirmedAppointmentDate):'Sin cita confirmada'}</strong></div>
-   <div class="exr-field"><small>Ventana de tiempo para cita confirmada *</small><strong>${exrText(i.appointmentWindow)}</strong></div>
-  </div>
+  <div class="exr-details"><div class="exr-field"><small>Fecha de cita o atención</small><strong>${serviceAppointmentDate(i)?fmt(serviceAppointmentDate(i)):'Sin fecha'}</strong></div></div>
   <div class="exr-copy"><strong>Solicitud / detalle:</strong><br>${exrText(i.description)}</div>
   <div class="exr-copy"><strong>Observaciones *</strong><br>${exrText(i.observations||i.actionNote||i.nextAction)}</div>
   <div class="exr-copy"><strong>Nota de reporte:</strong><br>${exrText(i.reportNote||i.notes)}</div>
