@@ -99,11 +99,26 @@ function typeFilterPanel(){
 }
 function setIssueTypeFilter(type){issueTypeFilter=type;renderClients(document.getElementById('clientSearch')?.value||'')}
 
+function localAppointmentDay(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)}
+function serviceAppointmentDate(i){
+  const date=Object.prototype.hasOwnProperty.call(i,'serviceDate')?i.serviceDate:(i.confirmedAppointmentDate||i.followupDate||i.attentionDate||i.appointmentDate||'');
+  return typeof date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
+}
+function clientAppointmentKey(c,day=localAppointmentDay()){
+  const dates=(c.issues||[]).filter(i=>i.active!==false&&i.state!=='Cancelado'&&!(typeof isClosedService==='function'?isClosedService(i):i.state==='Terminado')).map(serviceAppointmentDate).filter(Boolean).sort();
+  const next=dates.find(d=>d>=day);
+  return next?{group:0,date:next}:dates.length?{group:1,date:dates[dates.length-1]}:{group:2,date:''};
+}
+
 function orderedClients(category){
   const clients=state.clients.filter(c=>category==='Todos'||(c.issues||[]).some(i=>
     category==='Cobranza y pagos'?hasActiveServiceCharge(i):i.type===category));
-  const rank=c=>c.priorityByCategory?.[category]??Number.MAX_SAFE_INTEGER;
-  return clients.sort((a,b)=>rank(a)-rank(b));
+  const day=localAppointmentDay();
+  const keys=new Map(clients.map(c=>[c.id,clientAppointmentKey(c,day)]));
+  return clients.sort((a,b)=>{
+    const x=keys.get(a.id),y=keys.get(b.id);
+    return x.group-y.group || (x.group===1?y.date.localeCompare(x.date):x.date.localeCompare(y.date)) || String(a.name||'').localeCompare(String(b.name||''),'es',{sensitivity:'base'});
+  });
 }
 
 function matchesClientSearch(client,query){
