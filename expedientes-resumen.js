@@ -110,20 +110,7 @@ function exrEnhanceCards(){
   const match=open?.getAttribute('onclick')?.match(/openClient\('([^']+)'\)/);
   const c=match&&state.clients.find(x=>x.id===match[1]); if(!c)return;
   card.classList.add('exr-card');card.innerHTML=exrCardMarkup(c);
-  const controls=document.createElement('div');
-  controls.id='priority-'+c.id;
-  controls.className='split-actions';
-  for(const [step,label] of [[-1,'↑ Subir'],[1,'↓ Bajar']]){
-    const button=document.createElement('button');
-    button.type='button';
-    button.className='btn sm light';
-    button.textContent=label;
-    button.setAttribute('aria-label',label.slice(2)+' prioridad de '+(c.name||'cliente'));
-    button.disabled=index+step<0||index+step>=cards.length;
-    button.setAttribute('onclick','moveClientPriority('+JSON.stringify(c.id)+','+step+')');
-    controls.appendChild(button);
-  }
-  card.querySelector('.exr-card-head')?.appendChild(controls);
+
  });
 }
 const exrBaseRenderClients=renderClients;
