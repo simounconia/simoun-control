@@ -61,6 +61,14 @@ html.simoun-screen-locked body{overflow:hidden}
 #calendario .day.today .day-num{color:#805000;display:flex;align-items:center;gap:5px}
 #calendario .day.today .day-num::after{content:'☀';color:#d58a00;font-size:15px;line-height:1}
 #calendario .day.today .event-dot{background:#fffdf4;color:#59451b}
+
+/* Colores por categoría, también en el día actual. */
+#calendario .day .event-dot.cal-task{background:#087f75;color:#fff;font-weight:600}
+#calendario .day .event-dot.cal-note{background:#7441ac;color:#fff;font-weight:600}
+#calendario .day .event-dot.cal-task.cal-done{background:#d4e9e5;color:#365a55;text-decoration:line-through}
+#dayDlgBody .card.cal-task{background:#e5f5f1;border-left-color:#087f75!important}
+#dayDlgBody .card.cal-note{background:#f0e7fa;border-left-color:#7441ac!important}
+#dayDlgBody .card.cal-task.cal-done{background:#edf4f2}
 </style>
 </head>
 <body>
@@ -68,5 +76,5 @@ html.simoun-screen-locked body{overflow:hidden}
 <label class="field">Correo<input name="email" type="email" autocomplete="username" required></label>
 <label class="field">Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
 <button class="btn">Iniciar sesión</button><p role="status" id="ownerStatus"></p></form></main>
-<script src="sync.js?v=owner2"></script><script src="acceso.js?v=5"></script>
+<script src="sync.js?v=owner2"></script><script src="acceso.js?v=6"></script>
 </body></html>
