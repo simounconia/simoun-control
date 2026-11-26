@@ -10,7 +10,7 @@
   };
 
   let getState=()=>null, applyState=()=>{};
-  let timer=null, syncBusy=false, adminUidCache='';
+  let timer=null, syncBusy=false, adminUidCache='', pendingPush=false, localRevision=0;
   let access={role:'',displayName:'',email:'',workspace:WORKSPACE};
 
   function cfg(){return DEFAULT_CFG}
@@ -113,12 +113,14 @@
 
   async function uploadState(s){
     if(!loggedIn()||!isAdmin())return;
+    const revision=localRevision;
     const since=meta().lastServerUpdatedAt||null;
     const merged=await api('/rest/v1/rpc/simoun_admin_save_state',{
       method:'POST',body:JSON.stringify({p_workspace:WORKSPACE,p_data:s,p_since:since})
     });
     if(merged&&typeof merged==='object'){
-      applyRemote(merged);
+      // A late response must never replace edits made while it was in flight.
+      if(revision===localRevision){applyRemote(merged);pendingPush=false;}
       setMeta({lastServerUpdatedAt:merged._updatedAt||new Date().toISOString()});
     }
     setMeta({lastSync:new Date().toISOString(),status:'connected',lastError:''});
@@ -135,6 +137,7 @@
     if(!configured())return openSettings('Falta configurar la sincronización privada.');
     if(!loggedIn())return openSettings('Inicia sesión para sincronizar.');
     syncBusy=true;
+    const startedRevision=localRevision;
     try{
       setMeta({status:'syncing'});
       await loadAccess(true);
@@ -142,23 +145,26 @@
       if(!remote)throw new Error('No encontré el espacio compartido de SIMOUN.');
 
       {
-        const l=stateStamp(local),r=stateStamp(remote.data);
-        if(local?._freshInstall&&!forcePush){applyRemote(remote.data);setMeta({lastServerUpdatedAt:remote.updated_at||r||''})}
-        else if(forcePush||(!r&&local)){await uploadState(local)}
-        else if(l&&r&&l>r){await uploadState(local)}
+        const current=getState();
+        const l=stateStamp(current),r=stateStamp(remote.data);
+        if(pendingPush||localRevision!==startedRevision){await uploadState(current)}
+        else if(current?._freshInstall&&!forcePush){applyRemote(remote.data);setMeta({lastServerUpdatedAt:remote.updated_at||r||''})}
+        else if(forcePush||(!r&&current)){await uploadState(current)}
+        else if(l&&r&&l>r){await uploadState(current)}
         else if(r>l){applyRemote(remote.data);setMeta({lastServerUpdatedAt:remote.updated_at||r||''})}
         else if(!l&&remote.data){applyRemote(remote.data);setMeta({lastServerUpdatedAt:remote.updated_at||r||''})}
         else setMeta({lastServerUpdatedAt:remote.updated_at||r||meta().lastServerUpdatedAt||''});
       }
       setMeta({lastSync:new Date().toISOString(),status:'connected',lastError:''});
     }catch(e){setMeta({status:'error',lastError:String(e.message||e)});console.error(e)}
-    finally{syncBusy=false;refreshStatus()}
+    finally{syncBusy=false;refreshStatus();if(pendingPush&&localRevision!==startedRevision){clearTimeout(timer);timer=setTimeout(()=>syncNow(),300)}}
   }
 
   function queuePush(s){
     if(!loggedIn()||!isAdmin())return;
+    pendingPush=true;localRevision++;
     clearTimeout(timer);
-    timer=setTimeout(()=>uploadState(s).catch(e=>setMeta({status:'error',lastError:String(e.message||e)})),900);
+    timer=setTimeout(()=>syncNow(),900);
   }
 
   async function workspaceAdminUid(){
