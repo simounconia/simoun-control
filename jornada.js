@@ -130,8 +130,82 @@ function jornadaMoveTask(id,step){
  [all[a],all[b]]=[all[b],all[a]];
  jornadaData().taskOrder=all.map(t=>t.id);jornadaSort='manual';save();
 }
+// Reorder visible pending tasks without changing the slots of filtered-out tasks.
+function jornadaDropTask(id,targetId,after,visibleIds){
+  const j=jornadaData(),all=jornadaManualTasks(j.tasks.filter(t=>!t.done)).map(t=>t.id);
+  const allowed=new Set(visibleIds),visible=all.filter(x=>allowed.has(x));
+  if(id===targetId||!visible.includes(id)||!visible.includes(targetId))return false;
+  const next=visible.filter(x=>x!==id);
+  next.splice(next.indexOf(targetId)+(after?1:0),0,id);
+  if(next.every((x,k)=>x===visible[k]))return false;
+  let n=0;j.taskOrder=all.map(x=>allowed.has(x)?next[n++]:x);
+  jornadaSort='manual';save();return true;
+}
+let jTaskDrag=null;
+function jornadaDragStart(e){
+  const handle=e.target.closest?.('.j-drag-handle');
+  if(!handle||!e.isPrimary||e.button!==0||jornadaSort!=='manual')return;
+  const row=handle.closest('.j-flat-row'),board=row.closest('.j-board');
+  if(!board)return;
+  e.preventDefault();handle.focus({preventScroll:true});
+  const rows=[...board.querySelectorAll('[data-j-task-id]')];
+  jTaskDrag={pointer:e.pointerId,handle,row,board,rows,x:e.clientX,y:e.clientY,target:null,after:false,raf:0};
+  handle.setPointerCapture(e.pointerId);row.classList.add('j-dragging');
+  handle.setAttribute('aria-pressed','true');
+  jTaskDrag.raf=requestAnimationFrame(jornadaDragTick);
+}
+function jornadaDragTarget(d){
+  if(!d.row.isConnected||jornadaSort!=='manual'){jornadaDragFinish(false);return;}
+  const rows=d.rows.filter(r=>r.isConnected&&r!==d.row);
+  const box=d.board.getBoundingClientRect();
+  let target=null,after=false;
+  if(rows.length&&d.x>=box.left-32&&d.x<=box.right+32){
+    target=rows.find(r=>d.y<=r.getBoundingClientRect().bottom)||rows[rows.length-1];
+    const rect=target.getBoundingClientRect();after=d.y>rect.top+rect.height/2;
+  }
+  if(d.target!==target||d.after!==after){
+    d.target?.classList.remove('j-drop-before','j-drop-after');d.target=target;d.after=after;
+    target?.classList.add(after?'j-drop-after':'j-drop-before');
+  }
+}
+function jornadaDragTick(){
+  const d=jTaskDrag;if(!d)return;
+  if(!d.row.isConnected){jornadaDragFinish(false);return;}
+  const edge=75, h=window.innerHeight;
+  if(d.y<edge)window.scrollBy(0,-Math.min(18,Math.ceil((edge-d.y)/4)));
+  else if(d.y>h-edge)window.scrollBy(0,Math.min(18,Math.ceil((d.y-h+edge)/4)));
+  jornadaDragTarget(d);if(jTaskDrag===d)d.raf=requestAnimationFrame(jornadaDragTick);
+}
+function jornadaDragMove(e){
+  const d=jTaskDrag;if(!d||e.pointerId!==d.pointer)return;
+  e.preventDefault();d.x=e.clientX;d.y=e.clientY;jornadaDragTarget(d);
+}
+function jornadaDragFinish(commit){
+  const d=jTaskDrag;if(!d)return;jTaskDrag=null;cancelAnimationFrame(d.raf);
+  d.row.classList.remove('j-dragging');d.target?.classList.remove('j-drop-before','j-drop-after');
+  d.handle.setAttribute('aria-pressed','false');
+  if(d.handle.hasPointerCapture(d.pointer))d.handle.releasePointerCapture(d.pointer);
+  if(commit&&d.target&&d.row.isConnected&&d.target.isConnected&&jornadaSort==='manual')
+    jornadaDropTask(d.row.dataset.jTaskId,d.target.dataset.jTaskId,d.after,d.rows.map(r=>r.dataset.jTaskId));
+}
+document.addEventListener('pointerdown',jornadaDragStart);
+document.addEventListener('pointermove',jornadaDragMove,{passive:false});
+document.addEventListener('pointerup',e=>{if(jTaskDrag?.pointer===e.pointerId){jornadaDragMove(e);jornadaDragFinish(true)}});
+document.addEventListener('pointercancel',e=>{if(jTaskDrag?.pointer===e.pointerId)jornadaDragFinish(false)});
+document.addEventListener('lostpointercapture',e=>{if(jTaskDrag?.pointer===e.pointerId)jornadaDragFinish(false)});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&jTaskDrag){jornadaDragFinish(false);return;}
+  const handle=e.target.closest?.('.j-drag-handle');
+  if(!handle||!['ArrowUp','ArrowDown','Home','End'].includes(e.key))return;
+  e.preventDefault();const row=handle.closest('[data-j-task-id]'),rows=[...row.closest('.j-board').querySelectorAll('[data-j-task-id]')],index=rows.indexOf(row);
+  const target=e.key==='Home'?rows[0]:e.key==='End'?rows[rows.length-1]:rows[index+(e.key==='ArrowUp'?-1:1)];
+  const id=row.dataset.jTaskId;
+  if(target&&jornadaDropTask(id,target.dataset.jTaskId,rows.indexOf(target)>index,rows.map(r=>r.dataset.jTaskId)))
+    [...document.querySelectorAll('[data-j-task-id]')].find(r=>r.dataset.jTaskId===id)?.querySelector('.j-drag-handle')?.focus();
+});
 function jornadaFlatRows(tasks,day,done){
- return tasks.map((t,index)=>'<div class="j-flat-row" style="--j-task-color:'+J_TASK_COLORS[jTaskType(t)]+'">'+(!done&&jornadaSort==='manual'?'<div class="j-order"><strong>'+(index+1)+'</strong><button type="button" aria-label="Subir pendiente" '+(index===0?'disabled':'')+' onclick="jornadaMoveTask(\''+t.id+'\',-1)">↑</button><button type="button" aria-label="Bajar pendiente" '+(index===tasks.length-1?'disabled':'')+' onclick="jornadaMoveTask(\''+t.id+'\',1)">↓</button></div>':'')+jTaskCard(t,day,done)+'</div>').join('');
+  const manual=!done&&jornadaSort==='manual';
+  return tasks.map((t,index)=>'<div class="j-flat-row" '+(manual?'data-j-task-id="'+jesc(t.id)+'" ':'')+'style="--j-task-color:'+J_TASK_COLORS[jTaskType(t)]+'">'+(manual?'<div class="j-order"><strong>'+(index+1)+'</strong><button class="j-drag-handle" type="button" aria-label="Reordenar '+jesc(t.title)+'; arrastra o usa las teclas de dirección" aria-pressed="false" title="Arrastra para mover" >⠿</button></div>':'')+jTaskCard(t,day,done)+'</div>').join('');
 }
 function jornadaTaskResults(tasks,day){
   const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
@@ -180,7 +254,7 @@ function renderJornada(){
           <button class="btn">+ Agregar pendiente</button>
         </form>
         ${jornadaDashboard(j.tasks,day)}
-        <div class="j-sort-bar"><strong>Ordenar pendientes</strong><div class="j-sort-buttons">${[['manual','Mi orden'],['fecha','Por fecha'],['tipo','Por tipo']].map(([key,label])=>`<button type="button" class="btn sm ${jornadaSort===key?'':'secondary'}" onclick="jornadaSortMode('${key}')">${label}</button>`).join('')}</div><small class="muted">${jornadaSort==='manual'?'Usa ↑ y ↓ para definir tu prioridad.':'Puedes regresar a Mi orden sin perder tus prioridades.'}</small></div>
+        <div class="j-sort-bar"><strong>Ordenar pendientes</strong><div class="j-sort-buttons">${[['manual','Mi orden'],['fecha','Por fecha'],['tipo','Por tipo']].map(([key,label])=>`<button type="button" class="btn sm ${jornadaSort===key?'':'secondary'}" onclick="jornadaSortMode('${key}')">${label}</button>`).join('')}</div><small class="muted">${jornadaSort==='manual'?'Mantén presionado ⠿, arrastra el pendiente y suéltalo en su nueva posición.':'Puedes regresar a Mi orden sin perder tus prioridades.'}</small></div>
         <label class="field"><span>Buscar pendientes</span><input type="search" class="search" placeholder="Título, cliente, nota, tipo o fecha" value="${jesc(jornadaTaskQuery)}" oninput="searchJornadaTasks(this.value)"></label>
         <div id="jTaskResults">${jornadaTaskResults(j.tasks,day)}</div>
       </section>
@@ -279,3 +353,5 @@ jornadaStyle.textContent+="\n#jornada .j-layout-focused{display:block}\n#jornada
 jornadaStyle.textContent+="#jornada .j-board{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}\n#jornada .j-flat-row{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-left:4px solid var(--j-task-color);border-radius:10px;padding:5px 8px;background:#fff;min-width:0}\n#jornada .j-flat-row .j-item{flex:1;border:0;background:transparent;padding:5px;min-width:0;flex-wrap:nowrap}\n#jornada .j-flat-row:has(.j-late){background:#fff8f6}\n#jornada .j-type-pill{flex:none;color:white;border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700}\n#jornada .j-flat-row .j-due{min-width:95px;text-align:right}\n#jornada .j-order{display:flex;align-items:center;gap:3px;flex:none;color:var(--brand)}\n#jornada .j-order strong{font-size:12px;min-width:18px;text-align:center}\n#jornada .j-order button{border:1px solid var(--line);background:#edf3f9;color:var(--brand);border-radius:6px;width:28px;height:30px;cursor:pointer}\n#jornada .j-order button:disabled{opacity:.35;cursor:default}\n#jornada .j-sort-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}\n#jornada .j-sort-buttons{display:flex;gap:4px;flex-wrap:wrap}\n@media(max-width:720px){#jornada .j-flat-row .j-item{flex-wrap:wrap}#jornada .j-flat-row .j-item-text{flex-basis:calc(100% - 50px)}#jornada .j-order{flex-direction:column}#jornada .j-flat-row .j-due{min-width:0;text-align:left}#jornada .j-type-pill{font-size:10px}}";
 document.head.appendChild(jornadaStyle);
 renderJornada();
+
+jornadaStyle.textContent+="\n#jornada .j-drag-handle{touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab!important;font-size:24px;line-height:1;width:36px!important;height:42px!important;font-weight:bold}\n#jornada .j-flat-row.j-dragging{opacity:.55;outline:2px dashed #2e8bc0}\n#jornada .j-flat-row.j-drop-before{box-shadow:0 -4px 0 #1684b8}\n#jornada .j-flat-row.j-drop-after{box-shadow:0 4px 0 #1684b8}\n#jornada .j-dragging .j-drag-handle{cursor:grabbing!important}\n";
