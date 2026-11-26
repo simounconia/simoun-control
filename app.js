@@ -25,7 +25,7 @@ let deferredInstallPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;dashboard()});
 
 function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
-function save(){delete state._freshInstall;state._updatedAt=new Date().toISOString();localStorage.setItem(LS,JSON.stringify(state));renderAll();window.SimounSync?.queuePush(state)}
+function save(){delete state._freshInstall;state._updatedAt=new Date().toISOString();localStorage.setItem(LS,JSON.stringify(state));window.SimounSync?.queuePush(state);renderAll()}
 function esc(s=''){return String(s??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]))}
 function fmt(d){if(!d)return'';const x=new Date(d+'T12:00:00');return x.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'})}
 function today(){return new Date().toISOString().slice(0,10)}
@@ -180,8 +180,14 @@ function editClient(c,isNew){
     ${!isNew?`${clientWorkHistory(c)}
     <div class="section-title"><h3>Documentos</h3></div><div class="notice">Los archivos se guardan localmente en este dispositivo.</div><div class="toolbar" style="margin-top:8px"><input type="file" id="docFile"><button class="btn secondary" type="button" onclick="addDoc('${c.id}')">Adjuntar</button></div><div id="docsList">${(c.docs||[]).map(d=>`<div class="doc"><span>📎 ${esc(d.name)} <small class="muted">${Math.round(d.size/1024)} KB</small></span><div class="split-actions"><button class="btn sm light" onclick="downloadDoc('${c.id}','${d.id}')">Abrir</button><button class="btn sm danger" onclick="deleteDoc('${c.id}','${d.id}')">Borrar</button></div></div>`).join('')}</div>`:''}`;
   document.getElementById('clientForm').onsubmit=e=>{
-    e.preventDefault();const fd=new FormData(e.target);['name','phone','whatsapp','address','notes'].forEach(k=>c[k]=fd.get(k));c.visitHours='';
-    if(isNew)state.clients.unshift(c);save();clientDlg.close();openClient(c.id);
+    e.preventDefault();const fd=new FormData(e.target);
+    const current=state.clients.find(x=>x.id===c.id);
+    if(!isNew&&!current){alert('No se encuentra el cliente. Tus datos siguen en el formulario; no lo cierres.');return;}
+    const target=current||c;
+    ['name','phone','whatsapp','address','notes'].forEach(k=>target[k]=fd.get(k));target.visitHours='';
+    if(!current)state.clients.unshift(target);
+    try{save()}catch(err){console.error(err);alert('No se pudo completar el guardado. Tus datos siguen en el formulario; vuelve a intentar.');return;}
+    clientDlg.close();openClient(target.id);
   };
   clientDlg.showModal();
 }
