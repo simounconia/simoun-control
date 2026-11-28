@@ -38,8 +38,8 @@
   const dateKey = new Intl.DateTimeFormat('sv-SE', {timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'});
   const dateLabel = new Intl.DateTimeFormat('es-MX', {timeZone:zone,weekday:'short',day:'numeric',month:'short'});
   const stamp = new Intl.DateTimeFormat('es-MX', {timeZone:zone,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
-  const key = 'simoun_clima_casamata_v1';
-  const url = 'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=19.6909&lon=-101.1708';
+  const key = 'simoun_clima_casamata587_v2';
+  const url = 'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=19.6914&lon=-101.1733';
   const labels = {rain:'🌧️ Lluvia prevista',wet:'💧 Posible superficie mojada',dry:'🌤️ Sin lluvia prevista',unknown:'❔ Datos parciales'};
   let cached, busy = false;
   try { cached = JSON.parse(localStorage.getItem(key)); } catch {}
