@@ -6,8 +6,7 @@
   panel.className = 'card';
   panel.setAttribute('aria-labelledby', 'climaTitulo');
   panel.innerHTML = `<style>
-    #climaExterior{display:none;margin-bottom:1rem}
-    #climaExterior:has(+ #inicio.active){display:block}
+    #climaExterior{display:block;margin:1rem 0}
     #climaExterior h2{font-size:1.22rem;margin:0;color:var(--brand)}
     #climaExterior p{margin:.4rem 0}
     .clima-semana{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:.45rem;margin:.75rem 0}
@@ -23,7 +22,15 @@
   <small>Pronóstico de la zona en hora de Morelia. Abre un día para ver los horarios.</small>
   <div class="clima-semana"></div><p role="status"></p>
   <small>Confirma que la superficie esté seca en el domicilio de la cita. Datos de <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.</small>`;
-  home.before(panel);
+  // Inicio rebuilds its cards when synced data or the active page changes.
+  function placePanel() {
+    if (panel.parentElement === home) return;
+    const counters = home.querySelector('.grid.cards');
+    if (counters) counters.after(panel);
+    else home.prepend(panel);
+  }
+  placePanel();
+  new MutationObserver(placePanel).observe(home, {childList:true});
   const grid = panel.querySelector('.clima-semana');
   const status = panel.querySelector('[role=status]');
   const hour = 3600000;
