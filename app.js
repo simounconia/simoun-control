@@ -19,7 +19,8 @@ const PAY_DEST=['Efectivo','Depósito/transferencia — Cta. Factura ····020
 const LS='simoun_operativo_v1';
 const _rawLocalState=localStorage.getItem(LS);
 let state=JSON.parse(_rawLocalState||'null')||{clients:[],monitors:[],history:[],_freshInstall:true};
-let calCursor=new Date(); calCursor.setDate(1);
+let calCursor=new Date(today().slice(0,7)+'-01T12:00:00');
+let displayedCalendarDay;
 let issueTypeFilter='Todos';
 let deferredInstallPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;dashboard()});
@@ -28,7 +29,9 @@ function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36
 function save(){delete state._freshInstall;state._updatedAt=new Date().toISOString();localStorage.setItem(LS,JSON.stringify(state));window.SimounSync?.queuePush(state);renderAll()}
 function esc(s=''){return String(s??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]))}
 function fmt(d){if(!d)return'';const x=new Date(d+'T12:00:00');return x.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'})}
-function today(){return new Date().toISOString().slice(0,10)}
+function today(instant = new Date()){
+  return new Intl.DateTimeFormat('sv-SE', {timeZone:'America/Mexico_City', year:'numeric', month:'2-digit', day:'2-digit'}).format(instant);
+}
 function money(n){return Number(n||0).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}
 function typeStyle(type){const m=TYPE_META[type]||{color:'#2e8bc0',bg:'#e9f4fb',ink:'#146b96'};return `--type:${m.color};--type-bg:${m.bg};--type-ink:${m.ink}`}
 function typeTitle(type){const m=TYPE_META[type]||{icon:'•'};return `${m.icon} ${type}`}
@@ -248,10 +251,16 @@ function deleteIssue(cid,iid,fromGroup=false){const c=state.clients.find(x=>x.id
 
 function calendarBaseEvents(){return allIssues().filter(i=>i.active!==false).flatMap(i=>issueDates(i).map(d=>({date:d.date,label:d.label+' · '+i.type,client:i.client,issue:i}))).concat((typeof bankAgenda==='undefined'?[]:bankAgenda).map(x=>({date:x.date,label:x.label,client:{id:x.id,name:x.name},issue:{type:x.label},bank:true}))).sort((a,b)=>a.date.localeCompare(b.date))}
 function renderCalendar(){
+  displayedCalendarDay=today();
   const y=calCursor.getFullYear(),m=calCursor.getMonth();const first=new Date(y,m,1);let start=new Date(first);start.setDate(first.getDate()-((first.getDay()+6)%7));const ev=events();let cells='';
-  for(let n=0;n<42;n++){const d=new Date(start);d.setDate(start.getDate()+n);const iso=d.toISOString().slice(0,10);const des=ev.filter(e=>e.date===iso);cells+=`<div class="day ${d.getMonth()!==m?'other':''} ${iso===today()?'today':''}" onclick="openDay('${iso}')"><div class="day-num">${d.getDate()}</div>${des.slice(0,3).map(e=>`<span class="event-dot ${e.taskId?(e.taskDone?'cal-task cal-done':'cal-task'):(e.daily||e.noteId?'cal-note':'cal-appointment')}">${esc(e.daily?'Nota del día':e.noteId?'Nota':e.taskId?(e.taskDone?'✓ ':'○ ')+e.client.name:(calendarIsAppointment(e)&&appointmentOrder(e.issue)!==Number.MAX_SAFE_INTEGER?appointmentOrder(e.issue)+'. ':'')+e.client.name+' · '+e.issue.type+(e.issue.appointmentAgreedTime?' · '+e.issue.appointmentAgreedTime:''))}</span>`).join('')}${des.length>3?`<span class="event-dot calendar-more">+${des.length-3}</span>`:''}</div>`}
+  for(let n=0;n<42;n++){const d=new Date(start);d.setDate(start.getDate()+n);const iso=[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');const des=ev.filter(e=>e.date===iso);cells+=`<div class="day ${d.getMonth()!==m?'other':''} ${iso===displayedCalendarDay?'today':''}" onclick="openDay('${iso}')"><div class="day-num">${d.getDate()}</div>${des.slice(0,3).map(e=>`<span class="event-dot ${e.taskId?(e.taskDone?'cal-task cal-done':'cal-task'):(e.daily||e.noteId?'cal-note':'cal-appointment')}">${esc(e.daily?'Nota del día':e.noteId?'Nota':e.taskId?(e.taskDone?'✓ ':'○ ')+e.client.name:(calendarIsAppointment(e)&&appointmentOrder(e.issue)!==Number.MAX_SAFE_INTEGER?appointmentOrder(e.issue)+'. ':'')+e.client.name+' · '+e.issue.type+(e.issue.appointmentAgreedTime?' · '+e.issue.appointmentAgreedTime:''))}</span>`).join('')}${des.length>3?`<span class="event-dot calendar-more">+${des.length-3}</span>`:''}</div>`}
   document.getElementById('calendario').innerHTML=`<div class="calendar-head"><button class="btn secondary" onclick="moveMonth(-1)">‹</button><h2>${calCursor.toLocaleDateString('es-MX',{month:'long',year:'numeric'})}</h2><button class="btn secondary" onclick="moveMonth(1)">›</button></div><div class="calendar">${['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(x=>`<div class="dow">${x}</div>`).join('')}${cells}</div>`;
 }
+function refreshCalendarDay(){
+  if(!document.hidden && document.querySelector('#calendario.active') && displayedCalendarDay!==today()) renderCalendar();
+}
+document.addEventListener('visibilitychange',refreshCalendarDay);
+setInterval(refreshCalendarDay,60000);
 function moveMonth(x){calCursor.setMonth(calCursor.getMonth()+x);renderCalendar()}
 
 function calendarKey(e){return e.key||JSON.stringify([e.bank?'bank':'issue',e.client.id,e.issue.id||'',e.label,e.date])}
