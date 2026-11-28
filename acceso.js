@@ -16,6 +16,9 @@
    }
    if(!auth.loggedIn())return leave();
    document.getElementById('privateGate').remove();
+   const weather = document.createElement('script');
+   weather.src = './clima.js?v=1';
+   document.body.append(weather);
    if(document.readyState==='complete')window.dispatchEvent(new Event('load'));
    const check=async()=>{try{if(!await auth.verifyOwner())leave()}catch{leave()}};
    window.addEventListener('pageshow',e=>{if(e.persisted)check()});
